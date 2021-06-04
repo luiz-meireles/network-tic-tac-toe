@@ -1,5 +1,5 @@
 import sqlite3
-from domain.user import User
+from src.domain.user import User
 
 
 class ConstraintError(Exception):
@@ -9,9 +9,9 @@ class ConstraintError(Exception):
 class Storage:
     def __init__(self):
         # self.db = "./tictactoe.db"
-        self._migration = "./migration.sql"
+        self._migration = "./src/migration.sql"
         self._connection = sqlite3.connect(
-            "tictactoe.db", check_same_thread=False)
+            "./src/tictactoe.db", check_same_thread=False)
         self.run_migrations()
 
     def run_migrations(self):
