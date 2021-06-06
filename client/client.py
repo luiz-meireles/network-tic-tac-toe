@@ -1,6 +1,7 @@
 from socket import create_connection
 from ssl import SSLContext, PROTOCOL_TLS_CLIENT
 from src.state.user import UserMachine
+from connection import Request, ServerEventHandler
 import argparse
 import json
 
@@ -11,14 +12,20 @@ class Client:
         self.default_port = args.port
         self.ssl_port = args.ssl_port
         self.ssl_server_hostname = 'server-ep2-mac352'
-        self.init_ssl_context()
+        self.pear_port = 8080
+
         self.user_state = UserMachine()
         self.username = ''
-        self.server_connection = None
+        self.server_connection = Request(
+            self.ip_address, self.default_port, 104)
+        self.request = Request(self.ip_address, self.ssl_port, 1024,
+                               "src/server_ssl/server.crt", self.ssl_server_hostname)
 
-    def init_ssl_context(self):
-        self.ssl_context = SSLContext(PROTOCOL_TLS_CLIENT)
-        self.ssl_context.load_verify_locations('src/server_ssl/server.crt')
+        self.P2P_server = ServerEventHandler("localhost", 8080, 1024)
+        self.P2P_server.on("invitation", self.handle_invitation)
+
+    def handle_invitation(self):
+        pass
 
     def run(self):
         command = input('JogoDaVelha> ')
@@ -42,15 +49,10 @@ class Client:
                 f'adduser necessita de 2 argumentos, no entanto, {len(params)} foram passados')
             return
 
-        with create_connection((self.ip_address, self.ssl_port)) as client:
-            with self.ssl_context.wrap_socket(client, server_hostname=self.ssl_server_hostname) as tls:
-                print(f'Using {tls.version()}\n')
-                test = json.dumps(
-                    {"type": "adduser", 'username': params[0], 'password': params[1]}, ensure_ascii=True).encode('ascii')
-                tls.sendall(test)
+        response = self.request.request(json.dumps(
+            {"type": "adduser", 'username': params[0], 'password': params[1]}, ensure_ascii=True).encode('ascii'), tls=True)
 
-                data = tls.recv(1024)
-                print(f'Server says: {data}')
+        print(response)
 
     def login(self, params):
         if len(params) < 2:
@@ -61,28 +63,56 @@ class Client:
                 f'adduser necessita de 2 argumentos, no entanto, {len(params)} foram passados')
             return
 
-        with create_connection((self.ip_address, self.ssl_port)) as client:
-            with self.ssl_context.wrap_socket(client, server_hostname=self.ssl_server_hostname) as tls:
-                print(f'Using {tls.version()}\n')
-                payload = json.dumps(
-                    {"type": "login", 'username': params[0], 'password': params[1]}, ensure_ascii=True).encode('ascii')
-                tls.sendall(payload)
+        response = self.request.request(json.dumps(
+            {"type": "login", 'username': params[0], 'password': params[1]}, ensure_ascii=True).encode('ascii'), tls=True)
+        response = json.loads(response)
 
-                data = tls.recv(1024)
-                response = json.loads(data)
+        if response and response.get("status") == "OK":
+            self.username = params[0]
+            self.login_callback()
 
-                if response and response.get("status") == "OK":
-                    self.username = params[0]
-                    self.login_callback()
+    def new_game(self, params):
+        pass
+
+    def get_leaders(self, params):
+        pass
+
+    def get_players(self, params):
+        response = self.request.request(json.dumps(
+            {
+                "type": "list_layers",
+            }
+        ))
+
+        response = response and json.loads(response)
+        print(response)
+
+    def change_password(self, params):
+        response = self.request.request(
+            json.dumps(
+                {
+                    "type": "password_change",
+                    "username": self.username,
+                    "current_password": params[0],
+                    "new_password": params[1],
+                }
+            )
+        )
+        response = response and json.loads(response)
+        if response.get("status") == "OK":
+            print("Password changed")
 
     def login_callback(self):
-        self.server_connection = create_connection(
-            (self.ip_address, self.default_port))
-        payload = json.dumps(
-            {"type": "new_user_connection", "username": self.username}, ensure_ascii=True).encode("ascii")
-        self.server_connection.sendall(payload)
-        data = self.server_connection.recv(1024)
-        print(f'Server says: {data}')
+
+        payload = json.dumps({
+            "type": "new_user_connection",
+            "username": self.username,
+            "pear_port": self.pear_port,
+        }, ensure_ascii=True).encode("ascii")
+
+        response = self.server_connection.request(payload)
+
+        print(f'Server says: {response}')
 
 
 def main():

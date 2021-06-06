@@ -1,10 +1,12 @@
 from socket import socket, AF_INET, SOCK_STREAM
-import sqlite3
 from ssl import SSLContext, PROTOCOL_TLS_SERVER
 from threading import Thread, Lock
 from src.auth import hash_password, check_password
 from src.domain.user import User
 from src.db import Storage
+from connection import ServerEventHandler
+
+import sqlite3
 import argparse
 import json
 
@@ -15,87 +17,77 @@ class Server:
         self.default_port = args.port
         self.ssl_port = args.ssl_port
         self.db = Storage()
-        self.commands = {
-            "adduser": self.add_user,
-            "login": self.login,
-            "new_user_connection": self.new_user_connection
-        }
         self.logged_users = []
         self.mutex = Lock()
+        self.tls_server = ServerEventHandler(self.ip_address, self.ssl_port, bufflen=1024, tls=True,
+                                             tls_cert="src/server_ssl/server.crt", tls_key="src/server_ssl/server.key")
+        self.no_tls_server = ServerEventHandler(
+            self.ip_address, self.default_port)
 
     def run(self):
-        default_listener_th = Thread(target=self.default_listener)
-        ssl_listener_th = Thread(target=self.ssl_listener)
+        self.tls_server.on("adduser", self.add_user)
+        self.tls_server.on("login", self.login)
+        self.tls_server.on("password_change", self.change_password)
+        self.tls_server.start()
 
-        default_listener_th.start()
-        ssl_listener_th.start()
+        self.no_tls_server.on("heartbeat", self.heartbeat_recv)
+        self.no_tls_server.on("begin", self.new_game)
+        self.no_tls_server.on("new_user_connection", self.new_user_connection)
+        self.no_tls_server.on("list_players", self.list_players)
+        self.no_tls_server.start()
 
-        default_listener_th.join()
-        ssl_listener_th.join()
+    def heartbeat_recv(self, request, response):
+        pass
 
-    def default_listener(self):
-        with socket(AF_INET, SOCK_STREAM) as server:
-            server.bind((self.ip_address, self.default_port))
-            server.listen(1)
+    def new_game(self, request, response):
+        pass
 
-            while True:
-                connection, address = server.accept()
-                print(f"Connected by {address}\n")
+    def list_players(self, request, response):
+        response.sendall(json.dumps({
+            "status": "OK",
+            "players": self.logged_users
+        }).encode("ascii"))
 
-                data = connection.recv(1024)
-                request_th = Thread(target=self.handle_request, args=(
-                    connection, json.loads(data)))
-                request_th.start()
+    def change_password(self, request, response):
+        username = request.get("username")
+        current_password = request.get("current_password")
+        new_password = request.get("new_password")
 
-    def ssl_listener(self):
-        context = SSLContext(PROTOCOL_TLS_SERVER)
-        context.load_cert_chain("src/server_ssl/server.crt",
-                                "src/server_ssl/server.key")
+        user = self.db.get_user(username)
+        if user and check_password(current_password, user.password):
+            hashed_password = hash_password(new_password.encode("ascii"))
+            try:
+                self.db.change_password(username, hashed_password)
+                response.sendall(json.dumps({"status": "OK"}))
+            except sqlite3.IntegrityError:
+                response.sendall(json.dumps(
+                    {"status": "FAILD", "error": "Failed to change user password"}))
 
-        with socket(AF_INET, SOCK_STREAM) as server:
-            server.bind((self.ip_address, self.ssl_port))
-            server.listen(1)
-
-            with context.wrap_socket(server, server_side=True) as tls:
-                while True:
-                    connection, address = tls.accept()
-                    print(f"Connected by {address}\n")
-
-                    data = connection.recv(1024)
-                    request_th = Thread(target=self.handle_request, args=(
-                        connection, json.loads(data)))
-                    request_th.start()
-
-    def handle_request(self, connection, request):
-        self.commands.get(request.get('type', None),
-                          lambda _: _)(connection, request)
-
-    def add_user(self, connection, request):
+    def add_user(self, request, response):
         username, password = request.get("username"), request.get("password")
         hashed_password = hash_password(password.encode("ascii"))
         try:
-            self.mutex.acquire()
-            self.db.insert_user(User(username, hashed_password))
-            self.mutex.release()
-            connection.sendall(b"User created")
+            with self.mutex:
+                self.db.insert_user(User(username, hashed_password))
+            response.sendall(b"User created")
         except sqlite3.IntegrityError:
-            connection.sendall(b"Username is already in use.")
+            response.sendall(b"Username is already in use.")
 
-    def login(self, connection, request):
+    def login(self, request, response):
         # TODO: log faild login
         username, password = request.get("username"), request.get("password")
         user = self.db.get_user(username)
         if user and check_password(password.encode("ascii"), user.password):
             payload = {"status": "OK"}
-            connection.sendall(json.dumps(payload).encode("ascii"))
+            response.sendall(json.dumps(payload).encode("ascii"))
         else:
-            connection.sendall(b"Invalid username or password")
+            response.sendall(b"Invalid username or password")
 
-    def new_user_connection(self, connection, request):
+    def new_user_connection(self, request, response):
         username = request.get("username")
 
-        self.logged_users.append({"username": username, "socket": connection})
-        connection.sendall(b"foi rapaziada")
+        self.logged_users.append({"username": username, "socket": response})
+        response.sendall(b"foi rapaziada")
 
     def heartbeat_polling_thread(self):
         pass
