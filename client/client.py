@@ -17,14 +17,17 @@ class Client:
         self.user_state = UserMachine()
         self.username = ""
         self.default_connection = ClientConnectionHandler(
-            self.ip_address, self.default_port, 1024
+            self.ip_address, self.default_port, bufflen=1024
         )
+
         self.secure_connection = ClientConnectionHandler(
             self.ip_address,
             self.tls_port,
-            1024,
-            "src/server_tls/server.crt",
-            self.tls_server_hostname,
+            bufflen=1024,
+            keep_alive=False,
+            tls=True,
+            tls_cert="src/server_ssl/server.crt",
+            server_hostname=self.tls_server_hostname,
         )
 
         self.p2p_server = ServerEventHandler("localhost", self.pear_port, 1024)
@@ -45,6 +48,7 @@ class Client:
             "adduser": self.__add_user,
             "login": self.__login,
             "passwd": self.__passwd,
+            "list": self.__get_players,
         }
 
         command, *params = command_line.split(" ")
@@ -61,18 +65,14 @@ class Client:
             return
 
         response = self.secure_connection.request(
-            json.dumps(
-                {"type": "adduser", "username": params[0], "password": params[1]},
-                ensure_ascii=True,
-            ).encode("ascii"),
-            tls=True,
+            {"type": "adduser", "username": params[0], "password": params[1]},
         )
-        response = json.loads(response)
 
         if response and response.get("status") == "OK":
             pass
 
     def __login(self, params):
+        # TODO: don't let login twice, improve user output message.
         if len(params) < 2:
             print("argumentos insuficientes")
             return
@@ -83,27 +83,19 @@ class Client:
             return
 
         response = self.secure_connection.request(
-            json.dumps(
-                {"type": "login", "username": params[0], "password": params[1]},
-                ensure_ascii=True,
-            ).encode("ascii"),
-            tls=True,
+            {"type": "login", "username": params[0], "password": params[1]}
         )
-        response = json.loads(response)
 
-        if response and response.get("status") == "OK":
+        if response.get("status") == "OK":
             self.username = params[0]
             self.__login_callback()
 
     def __login_callback(self):
-        payload = json.dumps(
-            {
-                "type": "new_user_connection",
-                "username": self.username,
-                "pear_port": self.pear_port,
-            },
-            ensure_ascii=True,
-        ).encode("ascii")
+        payload = {
+            "type": "new_user_connection",
+            "username": self.username,
+            "pear_port": self.pear_port,
+        }
 
         response = self.default_connection.request(payload)
 
@@ -111,16 +103,14 @@ class Client:
 
     def __passwd(self, params):
         response = self.secure_connection.request(
-            json.dumps(
-                {
-                    "type": "password_change",
-                    "username": self.username,
-                    "current_password": params[0],
-                    "new_password": params[1],
-                }
-            )
+            {
+                "type": "password_change",
+                "username": self.username,
+                "current_password": params[0],
+                "new_password": params[1],
+            }
         )
-        response = response and json.loads(response)
+
         if response.get("status") == "OK":
             print("Password changed")
 
@@ -130,16 +120,13 @@ class Client:
     def get_leaders(self, params):
         pass
 
-    def get_players(self, params):
-        response = self.secure_connection.request(
-            json.dumps(
-                {
-                    "type": "list_players",
-                }
-            )
+    def __get_players(self, params):
+        response = self.default_connection.request(
+            {
+                "type": "list_players",
+            }
         )
 
-        response = response and json.loads(response)
         print(response)
 
 

@@ -25,8 +25,8 @@ class Server:
             self.tls_port,
             bufflen=1024,
             tls=True,
-            tls_cert="src/server_tls/server.crt",
-            tls_key="src/server_tls/server.key",
+            tls_cert="src/server_ssl/server.crt",
+            tls_key="src/server_ssl/server.key",
         )
 
     def run(self):
@@ -50,8 +50,9 @@ class Server:
     def list_players(self, request, response):
         payload = {
             "type": "list_players_response",
+            "request_id": request.get("request_id"),
             "status": "OK",
-            "players": self.logged_users,
+            "players": [user["username"] for user in self.logged_users],
         }
         response.sendall(json.dumps(payload).encode("ascii"))
 
@@ -61,16 +62,21 @@ class Server:
         new_password = request.get("new_password")
         user = self.db.get_user(username)
 
-        if user and check_password(current_password, user.password):
+        if user and check_password(current_password.encode("ascii"), user.password):
             hashed_password = hash_password(new_password.encode("ascii"))
 
             try:
                 self.db.change_password(username, hashed_password)
-                payload = {"type": "change_password_response", "status": "OK"}
+                payload = {
+                    "type": "change_password_response",
+                    "request_id": request.get("request_id"),
+                    "status": "OK",
+                }
                 response.sendall(json.dumps(payload).encode("ascii"))
             except sqlite3.IntegrityError:
                 payload = {
                     "type": "change_password_response",
+                    "request_id": request.get("request_id"),
                     "status": "FAIL",
                     "error": "Failed to change user password",
                 }
@@ -82,11 +88,16 @@ class Server:
         try:
             with self.mutex:
                 self.db.insert_user(User(username, hashed_password))
-            payload = {"type": "add_user_response", "status": "OK"}
+            payload = {
+                "type": "add_user_response",
+                "request_id": request.get("request_id"),
+                "status": "OK",
+            }
             response.sendall(json.dumps(payload).encode("ascii"))
         except sqlite3.IntegrityError:
             payload = {
                 "type": "add_user_response",
+                "request_id": request.get("request_id"),
                 "status": "FAIL",
                 "error": "Username is already in use",
             }
@@ -97,11 +108,16 @@ class Server:
         username, password = request.get("username"), request.get("password")
         user = self.db.get_user(username)
         if user and check_password(password.encode("ascii"), user.password):
-            payload = {"type": "login_response", "status": "OK"}
+            payload = {
+                "type": "login_response",
+                "request_id": request.get("request_id"),
+                "status": "OK",
+            }
             response.sendall(json.dumps(payload).encode("ascii"))
         else:
             payload = {
                 "type": "login_response",
+                "request_id": request.get("request_id"),
                 "status": "OK",
                 "error": "Invalid username or password",
             }
@@ -111,6 +127,15 @@ class Server:
         username = request.get("username")
 
         self.logged_users.append({"username": username, "socket": response})
+        response.sendall(
+            json.dumps(
+                {
+                    "type": "new_user_connection_response",
+                    "request_id": request.get("request_id"),
+                    "status": "OK",
+                }
+            ).encode("ascii")
+        )
 
 
 def main():
