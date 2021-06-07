@@ -5,8 +5,10 @@ from queue import Queue
 import json
 
 
-class Request(Thread):
-    def __init__(self, ip_address, port, bufflen=1024, tls_cert=None, server_hostname=None):
+class ClientConnectionHandler:
+    def __init__(
+        self, ip_address, port, bufflen=1024, tls_cert=None, server_hostname=None
+    ):
         self.ip_address = ip_address
         self.port = port
         self.tls_cert = tls_cert
@@ -18,11 +20,12 @@ class Request(Thread):
     def on(self, event, event_handler):
         self.events[event] = event_handler
 
-    def _ssl_wrapper(self, socket):
-        ssl_context = SSLContext(PROTOCOL_TLS_CLIENT)
-        ssl_context.load_verify_locations(self.tls_cert)
-        connection = ssl_context.wrap_socket(
-            socket, server_hostname=self.server_hostname)
+    def __tls_wrapper(self, socket):
+        tls_context = SSLContext(PROTOCOL_TLS_CLIENT)
+        tls_context.load_verify_locations(self.tls_cert)
+        connection = tls_context.wrap_socket(
+            socket, server_hostname=self.server_hostname
+        )
         return connection
 
     def request(self, request, tls=False):
@@ -40,7 +43,7 @@ class Request(Thread):
     def __enter__(self, tls=False):
         self.connection = create_connection((self.ip_address, self.port))
         if tls:
-            self.connection = self._ssl_wrapper(self.connection)
+            self.connection = self.__tls_wrapper(self.connection)
         return self.connection
 
     def __exit__(self):
@@ -48,11 +51,13 @@ class Request(Thread):
 
 
 class ServerEventHandler(Thread):
-    def __init__(self, ip_address, port, bufflen=1024, tls=False, tls_cert=None, tls_key=None) -> None:
+    def __init__(
+        self, ip_address, port, bufflen=1024, tls=False, tls_cert=None, tls_key=None
+    ) -> None:
         self.ip_address = ip_address
         self.port = port
         self.events = {}
-        self._connections = []
+        self.__connections = []
         self.is_running = True
         self.bufflen = bufflen
         self.tls = tls
@@ -65,14 +70,17 @@ class ServerEventHandler(Thread):
 
     def emit(self, event, payload):
         if self.is_running:
-            for connection in self._connections:
-                connection[0].sendall(json.dumps({
-                    "event": event,
-                    "payload": payload,
-                }).encode("ascii"))
+            for connection in self.__connections:
+                connection[0].sendall(
+                    json.dumps(
+                        {
+                            "event": event,
+                            "payload": payload,
+                        }
+                    ).encode("ascii")
+                )
 
     def run(self):
-
         with socket(AF_INET, SOCK_STREAM) as server:
             server.bind((self.ip_address, self.port))
             server.listen(1)
@@ -83,14 +91,14 @@ class ServerEventHandler(Thread):
                 server = context.wrap_socket(server, server_side=True)
 
             while self.is_running:
-
                 connection, address = server.accept()
                 connection_th = Thread(
-                    target=self._handle_connection, args=(connection, address))
+                    target=self.__handle_connection, args=(connection, address)
+                )
                 connection_th.start()
-                self._connections.append((connection, address, connection_th))
+                self.__connections.append((connection, address, connection_th))
 
-    def _handle_connection(self, connection, address):
+    def __handle_connection(self, connection, address):
         payload = connection.recv(self.bufflen)
 
         if payload:

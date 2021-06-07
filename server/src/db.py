@@ -11,7 +11,8 @@ class Storage:
         # self.db = "./tictactoe.db"
         self._migration = "./src/migration.sql"
         self._connection = sqlite3.connect(
-            "./src/tictactoe.db", check_same_thread=False)
+            "./src/tictactoe.db", check_same_thread=False
+        )
         self.run_migrations()
 
     def run_migrations(self):
@@ -32,7 +33,8 @@ class Storage:
     def get_user(self, username):
         cursor = self._connection.cursor()
         cursor.execute(
-            "SELECT username, password FROM users WHERE username = ?", (username,))
+            "SELECT username, password FROM users WHERE username = ?", (username,)
+        )
         user = cursor.fetchone()
         cursor.close()
 
@@ -45,8 +47,7 @@ class Storage:
     def change_password(self, username, password):
         cursor = self._connection.cursor()
         cursor.execute(
-            "UPDATE users SET password = ? WHERE username = ?",
-            (username, password)
+            "UPDATE users SET password = ? WHERE username = ?", (username, password)
         )
 
         self._connection.commit()
