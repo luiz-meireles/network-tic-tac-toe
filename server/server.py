@@ -118,7 +118,7 @@ class Server:
             payload = {
                 "type": "login_response",
                 "request_id": request.get("request_id"),
-                "status": "OK",
+                "status": "FAIL",
                 "error": "Invalid username or password",
             }
             response.sendall(json.dumps(payload).encode("ascii"))

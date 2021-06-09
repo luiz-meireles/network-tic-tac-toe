@@ -103,7 +103,6 @@ class ClientConnectionHandler:
 
     def __handle_response(self, response):
         request_id = response.get("request_id")
-        request_id = self.__set_response(request_id, response)
         self.__set_response(request_id, response)
 
     def __handle_event(self, event):
@@ -131,14 +130,12 @@ class ClientConnectionHandler:
         self.__connection_event.set()
 
         while data := self.__connection.recv(self.bufflen):
-
             if data := json.loads(data or "{}"):
                 if "request_id" in data:
                     self.__handle_response(data)
-
                 else:
                     event_handler_th = self.__handle_event(data)
-                    event_handler_threads.push(event_handler_th)
+                    event_handler_threads.append(event_handler_th)
 
             if not self.__keep_alive:
                 break
@@ -236,9 +233,19 @@ class ServerEventHandler(Thread):
         # TODO: improve client disconnection handler
         while self.__is_running:
             payload = connection.recv(self.bufflen)
+
             if payload:
                 data = json.loads(payload)
                 event_type = data.get("type")
                 self.__events.get(event_type, lambda *_: _)(data, connection)
             else:
                 break
+
+
+class Response:
+    def __init__(self, request, connection):
+        self.request = request
+        self.connection = connection
+
+    def get_request_body(self):
+        self.header = {}
