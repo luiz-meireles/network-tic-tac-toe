@@ -1,4 +1,10 @@
-from socket import socket, AF_INET, SOCK_STREAM, create_connection
+from socket import (
+    socket,
+    AF_INET,
+    SOCK_STREAM,
+    create_connection,
+    error as socket_error,
+)
 from ssl import SSLContext, PROTOCOL_TLS_CLIENT, PROTOCOL_TLS_SERVER
 from threading import Thread, Event, Lock
 import json
@@ -58,7 +64,7 @@ class ClientConnectionHandler:
         self.__keep_alive = keep_alive
 
         self.__request_count_lock = Lock()
-        self.__request_count = 0
+        self.__request_count = 1
 
         self.__requests_lock = Lock()
         self.__requests = {}
@@ -84,39 +90,61 @@ class ClientConnectionHandler:
 
         request_obj = Request(self.__request_count, request_body)
         self.__add_request(request_obj)
-        self.__connection.sendall(request_obj.get_request_body())
+
+        try:
+            self.__connection.sendall(request_obj.get_request_body())
+        except socket_error:
+            raise socket_error
 
         response = self.__get_response(request_obj.request_id())
         self.__remove_request(request_obj.request_id())
 
-        if not self.__keep_alive:
-            self.__connection.close()
         return response
+
+    def __handle_response(self, response):
+        request_id = response.get("request_id")
+        request_id = self.__set_response(request_id, response)
+        self.__set_response(request_id, response)
+
+    def __handle_event(self, event):
+        event_type = event.get("type")
+        event_handler = self.__events.get(event_type)
+
+        event_handler_th = Thread(target=event_handler, args=(event, self.__connection))
+        event_handler_th.start()
+
+        return event_handler_th
 
     def __listen(self):
         # TODO: improve server disconnection handler
-        self.__connection = create_connection((self.ip_address, self.port))
+        try:
+            self.__connection = create_connection((self.ip_address, self.port))
+        except socket_error as e:
+            # TODO: handle error
+            return
+
+        event_handler_threads = []
 
         if self.tls:
             self.__connection = self.__tls_wrapper(self.__connection)
+
         self.__connection_event.set()
 
-        while True:
-            try:
-                data = self.__connection.recv(self.bufflen)
-                if data:
-                    data = json.loads(data)
-                    if (request_id := data.get("request_id")) is not None:
-                        self.__set_response(request_id, data)
-                    elif (even_type := data.get("type")) is not None:
-                        if (event_handler := self.__events.get(even_type)) is not None:
-                            Thread(
-                                target=event_handler, args=(data, self.__connection)
-                            ).start()
+        while data := self.__connection.recv(self.bufflen):
+
+            if data := json.loads(data or "{}"):
+                if "request_id" in data:
+                    self.__handle_response(data)
+
                 else:
-                    break
-            except OSError as e:
+                    event_handler_th = self.__handle_event(data)
+                    event_handler_threads.push(event_handler_th)
+
+            if not self.__keep_alive:
                 break
+
+        for thead in event_handler_threads:
+            thead.join()
 
         self.__connection_event.clear()
         self.__connection = None

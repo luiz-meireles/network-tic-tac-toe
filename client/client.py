@@ -134,12 +134,15 @@ def main():
     parser = argparse.ArgumentParser(
         description="Execute a client for a tic tac toe game"
     )
-    parser.add_argument("--ip-address", type=str, help="server ip address")
+    parser.add_argument("-ip", "--ip-address", type=str, help="server ip address")
     parser.add_argument(
-        "--listen-port", type=int, help="client listener port for P2P connections"
+        "-lp",
+        "--listen-port",
+        type=int,
+        help="client listener port for P2P connections",
     )
-    parser.add_argument("--port", type=int, help="server port")
-    parser.add_argument("--tls-port", type=int, help="secure server port")
+    parser.add_argument("-p", "--port", type=int, help="server port")
+    parser.add_argument("-tlsp", "--tls-port", type=int, help="secure server port")
 
     args = parser.parse_args()
 
