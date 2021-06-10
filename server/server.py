@@ -49,7 +49,8 @@ class Server:
 
     def list_players(self, request, response):
         payload = {
-            "type": "list_players_response",
+            "packet_type": "response",
+            "packet_name": "list_players",
             "request_id": request.get("request_id"),
             "status": "OK",
             "players": [user["username"] for user in self.logged_users],
@@ -68,14 +69,16 @@ class Server:
             try:
                 self.db.change_password(username, hashed_password)
                 payload = {
-                    "type": "change_password_response",
+                    "packet_type": "response",
+                    "packet_name": "change_password",
                     "request_id": request.get("request_id"),
                     "status": "OK",
                 }
                 response.sendall(json.dumps(payload).encode("ascii"))
             except sqlite3.IntegrityError:
                 payload = {
-                    "type": "change_password_response",
+                    "packet_type": "response",
+                    "packet_name": "change_password",
                     "request_id": request.get("request_id"),
                     "status": "FAIL",
                     "error": "Failed to change user password",
@@ -89,14 +92,16 @@ class Server:
             with self.mutex:
                 self.db.insert_user(User(username, hashed_password))
             payload = {
-                "type": "add_user_response",
+                "packet_type": "response",
+                "packet_name": "add_user",
                 "request_id": request.get("request_id"),
                 "status": "OK",
             }
             response.sendall(json.dumps(payload).encode("ascii"))
         except sqlite3.IntegrityError:
             payload = {
-                "type": "add_user_response",
+                "packet_type": "response",
+                "packet_name": "add_user",
                 "request_id": request.get("request_id"),
                 "status": "FAIL",
                 "error": "Username is already in use",
@@ -104,19 +109,22 @@ class Server:
             response.sendall(json.dumps(payload).encode("ascii"))
 
     def login(self, request, response):
+        print(request)
         # TODO: log faild login
         username, password = request.get("username"), request.get("password")
         user = self.db.get_user(username)
         if user and check_password(password.encode("ascii"), user.password):
             payload = {
-                "type": "login_response",
+                "packet_type": "response",
+                "packet_name": "login",
                 "request_id": request.get("request_id"),
                 "status": "OK",
             }
             response.sendall(json.dumps(payload).encode("ascii"))
         else:
             payload = {
-                "type": "login_response",
+                "packet_type": "response",
+                "packet_name": "login",
                 "request_id": request.get("request_id"),
                 "status": "FAIL",
                 "error": "Invalid username or password",
@@ -130,7 +138,8 @@ class Server:
         response.sendall(
             json.dumps(
                 {
-                    "type": "new_user_connection_response",
+                    "packet_type": "response",
+                    "packet_name": "new_user_connection",
                     "request_id": request.get("request_id"),
                     "status": "OK",
                 }

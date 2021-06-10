@@ -10,7 +10,7 @@ from threading import Thread, Event, Lock
 import json
 
 
-class Request:
+class RequestHandler:
     def __init__(self, request_id, request_body) -> None:
         self.__request_id = request_id
         self.__request_body = request_body
@@ -88,7 +88,7 @@ class ClientConnectionHandler:
 
         self.__connection_event.wait()
 
-        request_obj = Request(self.__request_count, request_body)
+        request_obj = RequestHandler(self.__request_count, request_body)
         self.__add_request(request_obj)
 
         try:
@@ -131,9 +131,11 @@ class ClientConnectionHandler:
 
         while data := self.__connection.recv(self.bufflen):
             if data := json.loads(data or "{}"):
-                if "request_id" in data:
+                print(data)
+                packet_type = data.get("packet_type")
+                if packet_type == "response":
                     self.__handle_response(data)
-                else:
+                elif packet_type == "request":
                     event_handler_th = self.__handle_event(data)
                     event_handler_threads.append(event_handler_th)
 
@@ -236,10 +238,23 @@ class ServerEventHandler(Thread):
 
             if payload:
                 data = json.loads(payload)
-                event_type = data.get("type")
+                event_type = data.get("packet_name")
                 self.__events.get(event_type, lambda *_: _)(data, connection)
             else:
                 break
+
+
+class Request:
+    def __init__(self, request) -> None:
+        self.request = request
+
+    @property
+    def body(self):
+        return self.request.get("body")
+
+    @property
+    def header(self):
+        return self.request.get("header")
 
 
 class Response:
@@ -248,4 +263,14 @@ class Response:
         self.connection = connection
 
     def get_request_body(self):
-        self.header = {}
+        return self.request.get("body")
+
+    def send(self, payload):
+        header = self.request.get("header", {})
+        request_id = header.get("request_id")
+        payload = {"header": {"request_id": request_id}, "body": payload}
+
+        try:
+            self.connection.sendall(json.dumps(payload))
+        except socket_error as e:
+            print(e)

@@ -65,7 +65,12 @@ class Client:
             return
 
         response = self.secure_connection.request(
-            {"type": "adduser", "username": params[0], "password": params[1]},
+            {
+                "packet_type": "request",
+                "packet_name": "adduser",
+                "username": params[0],
+                "password": params[1],
+            },
         )
 
         if response and response.get("status") == "OK":
@@ -83,16 +88,24 @@ class Client:
             return
 
         response = self.secure_connection.request(
-            {"type": "login", "username": params[0], "password": params[1]}
+            {
+                "packet_type": "request",
+                "packet_name": "login",
+                "username": params[0],
+                "password": params[1],
+            }
         )
 
         if response.get("status") == "OK":
             self.username = params[0]
             self.__login_callback()
+        else:
+            print(response)
 
     def __login_callback(self):
         payload = {
-            "type": "new_user_connection",
+            "packet_type": "request",
+            "packet_name": "new_user_connection",
             "username": self.username,
             "pear_port": self.pear_port,
         }
@@ -104,7 +117,8 @@ class Client:
     def __passwd(self, params):
         response = self.secure_connection.request(
             {
-                "type": "password_change",
+                "packet_type": "request",
+                "packet_name": "password_change",
                 "username": self.username,
                 "current_password": params[0],
                 "new_password": params[1],
@@ -123,7 +137,8 @@ class Client:
     def __get_players(self, params):
         response = self.default_connection.request(
             {
-                "type": "list_players",
+                "packet_type": "request",
+                "packet_name": "list_players",
             }
         )
 
