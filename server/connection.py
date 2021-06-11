@@ -2,11 +2,13 @@ from socket import (
     socket,
     AF_INET,
     SOCK_STREAM,
+    SOL_SOCKET,
+    SO_REUSEADDR,
     create_connection,
     error as socket_error,
 )
 from ssl import SSLContext, PROTOCOL_TLS_CLIENT, PROTOCOL_TLS_SERVER
-from threading import Thread, Event, Lock
+from threading import Thread, Event, Lock, Timer
 import json
 
 
@@ -85,10 +87,10 @@ class ClientConnectionHandler:
 
         if not self.__keep_alive:
             self.__run()
-
         self.__connection_event.wait()
 
         request_obj = RequestHandler(self.__request_count, request_body)
+
         self.__add_request(request_obj)
 
         try:
@@ -106,8 +108,8 @@ class ClientConnectionHandler:
         self.__set_response(request_id, response)
 
     def __handle_event(self, event):
-        event_type = event.get("type")
-        event_handler = self.__events.get(event_type)
+        event_name = event.get("packet_name")
+        event_handler = self.__events.get(event_name)
 
         event_handler_th = Thread(target=event_handler, args=(event, self.__connection))
         event_handler_th.start()
@@ -120,6 +122,7 @@ class ClientConnectionHandler:
             self.__connection = create_connection((self.ip_address, self.port))
         except socket_error as e:
             # TODO: handle error
+            print(e)
             return
 
         event_handler_threads = []
@@ -127,11 +130,12 @@ class ClientConnectionHandler:
         if self.tls:
             self.__connection = self.__tls_wrapper(self.__connection)
 
-        self.__connection_event.set()
-
         while data := self.__connection.recv(self.bufflen):
+            if data == b"OK":
+                self.__connection_event.set()
+                continue
+
             if data := json.loads(data or "{}"):
-                print(data)
                 packet_type = data.get("packet_type")
                 if packet_type == "response":
                     self.__handle_response(data)
@@ -146,6 +150,7 @@ class ClientConnectionHandler:
             thead.join()
 
         self.__connection_event.clear()
+        self.__connection.close()
         self.__connection = None
 
     def __get_response(self, request_id):
@@ -159,7 +164,8 @@ class ClientConnectionHandler:
             request.stop_wait()
 
     def __remove_request(self, request_id):
-        self.__requests.pop(request_id)
+        with self.__requests_lock:
+            self.__requests.pop(request_id)
 
     def __add_request(self, request_obj):
         with self.__requests_lock:
@@ -188,8 +194,10 @@ class ServerEventHandler(Thread):
         self.tls_cert = tls_cert
         self.tls_key = tls_key
 
+        self.__events_lock = Lock()
         self.__events = {}
-        self.__connections = []
+        self.__connections_lock = Lock()
+        self.__connections = {}
         self.__is_running = True
         self.__connection = None
 
@@ -198,23 +206,24 @@ class ServerEventHandler(Thread):
     def on(self, event, event_handler):
         self.__events[event] = event_handler
 
-    def emit(self, event, payload):
+    def emit(self, payload):
         # TODO: improve this logic
+        connection_errors = []
         if self.__is_running:
-            for connection in self.__connections:
-                connection[0].sendall(
-                    json.dumps(
-                        {
-                            "event": event,
-                            "payload": payload,
-                        }
-                    ).encode("ascii")
-                )
+            with self.__connections_lock:
+                for address, connection_info in self.__connections.items():
+                    connection, _ = connection_info
+                    try:
+                        connection.sendall(payload)
+                    except ConnectionResetError:
+                        connection_errors.append(address)
+        return connection_errors
 
     def run(self):
         # TODO: improve server shutdown handler
 
         self.__connection = socket(AF_INET, SOCK_STREAM)
+        self.__connection.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         self.__connection.bind((self.ip_address, self.port))
         self.__connection.listen(1)
 
@@ -226,22 +235,39 @@ class ServerEventHandler(Thread):
         while self.__is_running:
             connection, address = self.__connection.accept()
             connection_th = Thread(
-                target=self.__handle_connection, args=(connection, address)
+                target=self.__handle_connection, args=(connection, address), daemon=True
             )
             connection_th.start()
-            self.__connections.append((connection, address, connection_th))
+            with self.__connections_lock:
+                self.__connections[address] = (connection, connection_th)
 
     def __handle_connection(self, connection, address):
         # TODO: improve client disconnection handler
+        connection.sendall(b"OK")
         while self.__is_running:
             payload = connection.recv(self.bufflen)
 
             if payload:
                 data = json.loads(payload)
                 event_type = data.get("packet_name")
-                self.__events.get(event_type, lambda *_: _)(data, connection)
+
+                with self.__events_lock:
+                    self.__events.get(event_type, lambda *_: _)(data, connection)
             else:
+                with self.__connections_lock:
+                    if address in self.__connections:
+                        self.__connections.pop(address)
                 break
+
+
+def set_interval(func, sec):
+    def func_wrapper():
+        set_interval(func, sec)
+        func()
+
+    t = Timer(sec, func_wrapper)
+    t.start()
+    return t
 
 
 class Request:

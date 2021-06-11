@@ -12,7 +12,7 @@ class Client:
         self.default_port = args.port
         self.tls_port = args.tls_port
         self.tls_server_hostname = "server-ep2-mac352"
-        self.pear_port = args.listen_port
+        self.peer_port = args.listen_port
 
         self.user_state = UserMachine()
         self.username = ""
@@ -30,11 +30,10 @@ class Client:
             server_hostname=self.tls_server_hostname,
         )
 
-        self.p2p_server = ServerEventHandler("localhost", self.pear_port, 1024)
-        self.p2p_server.on("invitation", self.handle_invitation)
+        self.default_connection.on("heartbeat", self.__heartbeat)
 
-    def handle_invitation(self):
-        pass
+        self.p2p_server = ServerEventHandler("localhost", self.peer_port, 1024)
+        self.p2p_server.on("invitation", self.__invitation)
 
     def run(self):
         command = input("JogoDaVelha> ")
@@ -48,7 +47,8 @@ class Client:
             "adduser": self.__add_user,
             "login": self.__login,
             "passwd": self.__passwd,
-            "list": self.__get_players,
+            "list": self.__players,
+            "logout": self.__logout,
         }
 
         command, *params = command_line.split(" ")
@@ -107,7 +107,7 @@ class Client:
             "packet_type": "request",
             "packet_name": "new_user_connection",
             "username": self.username,
-            "pear_port": self.pear_port,
+            "peer_port": self.peer_port,
         }
 
         response = self.default_connection.request(payload)
@@ -128,13 +128,13 @@ class Client:
         if response.get("status") == "OK":
             print("Password changed")
 
-    def new_game(self, params):
+    def __new_game(self, params):
         pass
 
-    def get_leaders(self, params):
+    def __leaders(self, params):
         pass
 
-    def __get_players(self, params):
+    def __players(self, params):
         response = self.default_connection.request(
             {
                 "packet_type": "request",
@@ -143,6 +143,23 @@ class Client:
         )
 
         print(response)
+
+    def __logout(self, params):
+        response = self.default_connection.request(
+            {
+                "packet_type": "request",
+                "packet_name": "logout",
+                "username": self.username,
+            }
+        )
+
+        print(response)
+
+    def __invitation(self):
+        pass
+
+    def __heartbeat(self, request, response):
+        pass
 
 
 def main():
