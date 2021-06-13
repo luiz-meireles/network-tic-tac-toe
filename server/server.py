@@ -59,7 +59,7 @@ class Server:
             "packet_name": "list_players",
             "request_id": request.get("request_id"),
             "status": "OK",
-            "players": [user.username for user in self.logged_users.values()],
+            "players": self.logged_users,
         }
         response.sendall(json.dumps(payload).encode("ascii"))
 
@@ -165,9 +165,11 @@ class Server:
 
     def new_user_connection(self, request, response):
         username = request.get("username")
-        peer_address = request.get("peer_address")
+        client_listen_port = request.get("listen_port")
+        addr = response.getpeername()
+
         with self.logged_users_lock:
-            self.logged_users[username] = User(username, peer_address)
+            self.logged_users[username] = [addr[0], client_listen_port]
         response.sendall(
             json.dumps(
                 {

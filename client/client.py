@@ -13,7 +13,7 @@ class Client:
         self.default_port = args.port
         self.tls_port = args.tls_port
         self.tls_server_hostname = "server-ep2-mac352"
-        self.peer_port = args.listen_port
+        self.listen_port = args.listen_port
 
         self.user_state = UserStateMachine()
         self.username = ""
@@ -33,8 +33,9 @@ class Client:
 
         self.default_connection.on("heartbeat", self.__heartbeat)
 
-        self.p2p_server = ServerEventHandler("localhost", self.peer_port, 1024)
+        self.p2p_server = ServerEventHandler("localhost", self.listen_port, 1024)
         self.p2p_server.on("invitation", self.__invitation)
+        self.online_users = {}
 
     def run(self):
         command = input("JogoDaVelha> ")
@@ -50,6 +51,7 @@ class Client:
             "passwd": self.__passwd,
             "list": self.__players,
             "leaders": self.__leaders,
+            "begin": self.__new_game,
             "logout": self.__logout,
         }
 
@@ -109,7 +111,7 @@ class Client:
             "packet_type": "request",
             "packet_name": "new_user_connection",
             "username": self.username,
-            "peer_port": self.peer_port,
+            "listen_port": self.listen_port,
         }
 
         response = self.default_connection.request(payload)
@@ -130,9 +132,6 @@ class Client:
         if response.get("status") == "OK":
             print("Password changed")
 
-    def __new_game(self, params):
-        pass
-
     def __players(self, params):
         response = self.default_connection.request(
             {
@@ -141,8 +140,9 @@ class Client:
             }
         )
 
-        print("USUÁRIOS ONLINE")
+        self.online_users = response.get("players")
 
+        print("USUÁRIOS ONLINE")
         for user in response.get("players"):
             print(user)
 
@@ -182,6 +182,9 @@ class Client:
         )
 
         print(response)
+
+    def __new_game(self, params):
+        pass
 
     def __invitation(self):
         pass
