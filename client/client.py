@@ -1,8 +1,10 @@
 from socket import create_connection
 from ssl import SSLContext, PROTOCOL_TLS_CLIENT
-from src.state.user import UserStateMachine
 from connection import ClientConnectionHandler, ServerEventHandler
-from tabulate import tabulate
+from src.state.user import UserStateMachine
+from src.input_read import InputRead
+from threading import Event
+
 import argparse
 import json
 
@@ -18,13 +20,12 @@ class Client:
         self.user_state = UserStateMachine()
         self.username = ""
         self.default_connection = ClientConnectionHandler(
-            self.ip_address, self.default_port, bufflen=1024
+            self.ip_address, self.default_port
         )
 
         self.secure_connection = ClientConnectionHandler(
             self.ip_address,
             self.tls_port,
-            bufflen=1024,
             keep_alive=False,
             tls=True,
             tls_cert="src/server_ssl/server.crt",
@@ -33,16 +34,21 @@ class Client:
 
         self.default_connection.on("heartbeat", self.__heartbeat)
 
-        self.p2p_server = ServerEventHandler("localhost", self.listen_port, 1024)
+        self.p2p_server = ServerEventHandler("127.0.0.1", self.listen_port)
         self.p2p_server.on("invitation", self.__invitation)
+        self.p2p_server.start()
+
         self.online_users = {}
 
-    def run(self):
-        command = input("JogoDaVelha> ")
+        self.command_read_event = Event()
+        self.request_event = Event()
+        self.request_event.set()
 
-        while command != "exit":
-            self.__handle_command(command)
-            command = input("JogoDaVelha> ")
+    def run(self):
+        self.input_non_blocking = InputRead(
+            self.__handle_command, self.command_read_event, self.request_event
+        )
+        self.input_non_blocking.run()
 
     def __handle_command(self, command_line):
         commands = {
@@ -57,6 +63,7 @@ class Client:
 
         command, *params = command_line.split(" ")
         commands.get(command, lambda _: _)(params)
+        self.command_read_event.set()
 
     def __add_user(self, params):
         if len(params) < 2:
@@ -184,10 +191,58 @@ class Client:
         print(response)
 
     def __new_game(self, params):
-        pass
+        user = self.online_users.get(params[0])
 
-    def __invitation(self):
-        pass
+        if user:
+            target_user_addr, target_user_port = user
+            self.p2p_connection = ClientConnectionHandler(
+                target_user_addr, target_user_port
+            )
+
+            response = self.p2p_connection.request(
+                {
+                    "packet_type": "request",
+                    "packet_name": "invitation",
+                    "username": self.username,
+                }
+            )
+
+            if response.get("status") == "OK":
+                print("dahora")
+            else:
+                print("falhou")
+        else:
+            print(
+                "Por favor, verifique se o usuário escolhido está realmente online utilizando o comando 'list'."
+            )
+
+    def __invitation(self, request, response):
+        self.command_read_event.clear()
+        self.input_non_blocking.pause_read()
+
+        command = input(
+            f"{request.get('username')} está querendo iniciar um novo jogo, você aceita a partida? S/N\n"
+        )
+
+        if command == "S":
+            payload = {
+                "packet_type": "response",
+                "packet_name": "invitation",
+                "request_id": request.get("request_id"),
+                "status": "OK",
+            }
+        else:
+            payload = {
+                "packet_type": "response",
+                "packet_name": "invitation",
+                "request_id": request.get("request_id"),
+                "status": "FAIL",
+            }
+
+        response.sendall(json.dumps(payload).encode("ascii"))
+        print("bla")
+
+        self.command_read_event.set()
 
     def __heartbeat(self, request, response):
         pass
