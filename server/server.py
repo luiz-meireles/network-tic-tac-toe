@@ -43,6 +43,7 @@ class Server:
         self.connection_handler.on("begin", self.new_game)
         self.connection_handler.on("new_user_connection", self.new_user_connection)
         self.connection_handler.on("list_players", self.list_players)
+        self.connection_handler.on("leaderboard", self.leaderboard)
         self.connection_handler.on("logout", self.logout)
         self.connection_handler.start()
 
@@ -59,6 +60,31 @@ class Server:
             "request_id": request.get("request_id"),
             "status": "OK",
             "players": [user.username for user in self.logged_users.values()],
+        }
+        response.sendall(json.dumps(payload).encode("ascii"))
+
+    def leaderboard(self, request, response):
+        users = self.db.get_all_users()
+        users_list = list(
+            map(
+                lambda user: {
+                    "username": user[0],
+                    "wins": user[1],
+                    "ties": user[3],
+                    "loses": user[2],
+                    "points": 2 * user[1] + user[3],
+                },
+                users,
+            )
+        )
+        leaderboard = sorted(users_list, key=lambda user: user["points"], reverse=True)
+
+        payload = {
+            "packet_type": "response",
+            "packet_name": "leaderboard",
+            "request_id": request.get("request_id"),
+            "status": "OK",
+            "leaderboard": list(leaderboard),
         }
         response.sendall(json.dumps(payload).encode("ascii"))
 
@@ -117,8 +143,8 @@ class Server:
     def login(self, request, response):
         # TODO: log faild login
         username, password = request.get("username"), request.get("password")
-        with self.db_lock:
-            user = self.db.get_user(username)
+        user = self.db.get_user(username)
+
         if user and check_password(password.encode("ascii"), user.password):
             payload = {
                 "packet_type": "response",

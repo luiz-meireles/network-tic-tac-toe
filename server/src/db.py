@@ -24,8 +24,8 @@ class Storage:
     def insert_user(self, user):
         cursor = self._connection.cursor()
         cursor.execute(
-            "INSERT INTO users (username, password) VALUES (?, ?)",
-            (user.username, user.password),
+            "INSERT INTO users (username, password, win_count, lose_count, tie_count) VALUES (?, ?, ?, ?, ?)",
+            (user.username, user.password, 0, 0, 0),
         )
         self._connection.commit()
         cursor.close()
@@ -33,7 +33,7 @@ class Storage:
     def get_user(self, username):
         cursor = self._connection.cursor()
         cursor.execute(
-            "SELECT username, password FROM users WHERE username = ?", (username,)
+            "SELECT username, password FROM users WHERE username = '%s'" % username
         )
         user = cursor.fetchone()
         cursor.close()
@@ -43,6 +43,17 @@ class Storage:
 
         _, password = user
         return User(username, password)
+
+    def get_all_users(self):
+        cursor = self._connection.cursor()
+        cursor.execute("SELECT username, win_count, lose_count, tie_count FROM users")
+        users = cursor.fetchall()
+        cursor.close()
+
+        if not users:
+            return None
+
+        return users
 
     def change_password(self, username, password):
         cursor = self._connection.cursor()

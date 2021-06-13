@@ -1,5 +1,8 @@
 CREATE TABLE IF NOT EXISTS users(
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
-    password TEXT NOT NULL
+    password TEXT NOT NULL,
+    win_count INTEGER,
+    lose_count INTEGER,
+    tie_count INTEGER
 );

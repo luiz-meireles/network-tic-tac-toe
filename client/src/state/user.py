@@ -1,7 +1,7 @@
 from statemachine import StateMachine, State
 
 
-class UserMachine(StateMachine):
+class UserStateMachine(StateMachine):
     logged_out = State("LoggedOut", initial=True)
     logged = State("Logged")
 

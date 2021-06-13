@@ -1,7 +1,8 @@
 from socket import create_connection
 from ssl import SSLContext, PROTOCOL_TLS_CLIENT
-from src.state.user import UserMachine
+from src.state.user import UserStateMachine
 from connection import ClientConnectionHandler, ServerEventHandler
+from tabulate import tabulate
 import argparse
 import json
 
@@ -14,7 +15,7 @@ class Client:
         self.tls_server_hostname = "server-ep2-mac352"
         self.peer_port = args.listen_port
 
-        self.user_state = UserMachine()
+        self.user_state = UserStateMachine()
         self.username = ""
         self.default_connection = ClientConnectionHandler(
             self.ip_address, self.default_port, bufflen=1024
@@ -48,6 +49,7 @@ class Client:
             "login": self.__login,
             "passwd": self.__passwd,
             "list": self.__players,
+            "leaders": self.__leaders,
             "logout": self.__logout,
         }
 
@@ -112,7 +114,7 @@ class Client:
 
         response = self.default_connection.request(payload)
 
-        print(f"Server says: {response}")
+        print(response)
 
     def __passwd(self, params):
         response = self.secure_connection.request(
@@ -131,9 +133,6 @@ class Client:
     def __new_game(self, params):
         pass
 
-    def __leaders(self, params):
-        pass
-
     def __players(self, params):
         response = self.default_connection.request(
             {
@@ -142,7 +141,36 @@ class Client:
             }
         )
 
-        print(response)
+        print("USUÁRIOS ONLINE")
+
+        for user in response.get("players"):
+            print(user)
+
+    def __leaders(self, params):
+        response = self.default_connection.request(
+            {
+                "packet_type": "request",
+                "packet_name": "leaderboard",
+            }
+        )
+
+        print(
+            "{:<12} {:<12} {:<12} {:<12} {:<12} {:<12}".format(
+                "POSIÇÃO", "USUÁRIO", "VITÓRIAS", "EMPATES", "DERROTAS", "PONTUAÇÃO"
+            )
+        )
+
+        for index, user in enumerate(response.get("leaderboard")):
+            print(
+                "{:<12} {:<12} {:<12} {:<12} {:<12} {:<12}".format(
+                    index + 1,
+                    user.get("username"),
+                    user.get("wins"),
+                    user.get("ties"),
+                    user.get("loses"),
+                    user.get("points"),
+                )
+            )
 
     def __logout(self, params):
         response = self.default_connection.request(
