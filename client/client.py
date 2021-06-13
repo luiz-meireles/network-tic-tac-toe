@@ -3,7 +3,6 @@ from ssl import SSLContext, PROTOCOL_TLS_CLIENT
 from connection import ClientConnectionHandler, ServerEventHandler
 from src.state.user import UserStateMachine
 from src.input_read import InputRead
-from threading import Event
 
 import argparse
 import json
@@ -40,15 +39,8 @@ class Client:
 
         self.online_users = {}
 
-        self.command_read_event = Event()
-        self.request_event = Event()
-        self.request_event.set()
-
     def run(self):
-        self.input_non_blocking = InputRead(
-            self.__handle_command, self.command_read_event, self.request_event
-        )
-        self.input_non_blocking.run()
+        self.input_non_blocking = InputRead(self.__handle_command)
 
     def __handle_command(self, command_line):
         commands = {
@@ -63,7 +55,6 @@ class Client:
 
         command, *params = command_line.split(" ")
         commands.get(command, lambda _: _)(params)
-        self.command_read_event.set()
 
     def __add_user(self, params):
         if len(params) < 2:
@@ -217,8 +208,7 @@ class Client:
             )
 
     def __invitation(self, request, response):
-        self.command_read_event.clear()
-        self.input_non_blocking.pause_read()
+        self.input_non_blocking.init_request()
 
         command = input(
             f"{request.get('username')} está querendo iniciar um novo jogo, você aceita a partida? S/N\n"
@@ -240,9 +230,8 @@ class Client:
             }
 
         response.sendall(json.dumps(payload).encode("ascii"))
-        print("bla")
 
-        self.command_read_event.set()
+        self.input_non_blocking.end_request()
 
     def __heartbeat(self, request, response):
         pass

@@ -1,5 +1,5 @@
-from threading import Thread, Lock
-from queue import Queue, Empty
+from threading import Thread, Event
+from termios import TCIFLUSH, tcflush
 
 import sys
 import select
@@ -7,73 +7,52 @@ import time
 import os
 
 
-class InputRead:
-    def __init__(
-        self, input_callback=None, command_read_event=None, request_event=None
-    ):
-        self.pipe_read, self.pipe_write = os.pipe()
-        self.read_list = [sys.stdin, self.pipe_read]
+class InputRead(Thread):
+    def __init__(self, input_callback=None):
+        self.read_pipe, self.write_pipe = os.pipe()
+        self.read_list = [sys.stdin, self.read_pipe]
         self.timeout = 0.1
         self.last_work_time = time.time()
 
-        self.input_queue = Queue()
-        self.interrupted = Lock()
-
         self.input_callback = input_callback
-        self.command_read_event = command_read_event
-        self.request_event = request_event
+        self.pause_event = Event()
+
+        Thread.__init__(self)
+        self.start()
 
     def run(self):
-        self.interrupted.acquire()
+        show_default_label = True
 
-        input_thread = Thread(target=self.read_input, daemon=True)
-        input_thread.start()
+        while self.read_list:
+            if show_default_label:
+                sys.stdout.write("JogoDaVelha> ")
+                sys.stdout.flush()
+                show_default_label = False
 
-        try:
-            while True:
-                if self.input_queue.empty() and not input_thread.is_alive():
-                    break
-                else:
-                    try:
-                        self.treat_input(self.input_queue.get(timeout=self.timeout))
-                    except Empty:
-                        self.idle_work()
-        except KeyboardInterrupt:
-            self.cleanup()
+            ready = select.select(self.read_list, [], [])[0]
 
-        self.interrupted.release()
-
-    def pause_read(self):
-        os.write(self.pipe_write, b"\0")
-
-    def read_input(self):
-        while self.read_list and not self.interrupted.acquire(blocking=False):
-            sys.stdout.write("JogoDaVelha> ")
-            sys.stdout.flush()
-            readable = select.select(self.read_list, [], [])[0]
-
-            if self.pipe_read in readable:
-                print("entrando aq dentro")
-                self.command_read_event.wait()
+            if self.read_pipe in ready:
+                self.pause_event.wait()
+                self.pause_event.clear()
+                show_default_label = True
                 continue
 
-            line = sys.stdin.readline()
-            self.input_queue.put(line.rstrip())
+            if sys.stdin in ready:
+                line = sys.stdin.readline()
 
-            self.command_read_event.wait()
-            self.command_read_event.clear()
+                if line.rstrip():
+                    self.treat_input(line.rstrip())
+                    show_default_label = True
+
+            tcflush(sys.stdin, TCIFLUSH)
+
+    def init_request(self):
+        os.write(self.write_pipe, b"\0")
+
+    def end_request(self):
+        os.read(self.read_pipe, 1)
+        self.pause_event.set()
 
     def treat_input(self, linein):
         self.input_callback(linein)
         self.last_work_time = time.time()
-
-    def idle_work(self):
-        now = time.time()
-
-        if now - self.last_work_time > 2:
-            self.last_work_time = now
-
-    def cleanup(self):
-        print()
-        while not self.input_queue.empty():
-            self.input_queue.get()
