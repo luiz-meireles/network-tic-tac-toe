@@ -18,9 +18,6 @@ class TicTacToe:
     def update_oponent_move(self, row, col):
         return self.__insert_move(row, col, self.oponent)
 
-    def get_board(self):
-        return self.board
-
     def get_winner(self):
         return self.winner
 
@@ -91,13 +88,14 @@ class TicTacToe:
             self.winner = "tie"
             return self.winner
 
-    @staticmethod
-    def print_board(board):
-        n = len(board)
+    def __str__(self):
+        n = len(self.board)
         row = "{}    {:<2} |  {:<2} |  {:<2}\n"
         sep = "    ---------------\n"
         string = "     {:<2}    {:<2}    {:<2}\n\n".format(1, 2, 3)
+
         for i in range(n):
-            string += row.format(i + 1, *[val for val in board[i]])
+            string += row.format(i + 1, *[val for val in self.board[i]])
             string += sep if i < n - 1 else ""
-        print(string)
+
+        return string

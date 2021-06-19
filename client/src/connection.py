@@ -110,6 +110,7 @@ class ClientConnectionHandler:
 
     def __handle_event(self, event):
         event_name = event.get("packet_name")
+
         event_handler = self.__events.get(event_name)
 
         event_handler_th = Thread(target=event_handler, args=(event, self.__connection))
