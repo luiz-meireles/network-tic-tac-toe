@@ -38,11 +38,14 @@ class TicTacToe:
 
     def __check_for_winner(self, counter):
         highest_score = next(iter(counter.most_common(1)), None)
-        if highest_score and highest_score[1] == 3:
-            return highest_score[0]
+        if highest_score and highest_score[0] in (self.player, self.oponent):
+            if highest_score[1] == 3:
+                return highest_score[0]
+
         return None
 
     def __insert_move(self, row, col, player):
+        row, col = row - 1, col - 1
         if not self.winner and self.moves_count < 9 and not self.board[row][col]:
             self.moves_count += 1
             self.board[row][col] = player
@@ -57,7 +60,7 @@ class TicTacToe:
                 return winner
 
         # Check for winner in secondary diagonal
-        if row == 2 and col == 0 or row == 0 and col == 2:
+        if (row, col) in [(1, 1), (2, 0), (0, 2)]:
             secondary_diagonal = Counter(self.__get_secondary_diagonal())
             if winner := self.__check_for_winner(secondary_diagonal):
                 self.winner = winner
@@ -81,16 +84,16 @@ class TicTacToe:
 
         # Check for tie
         if self.moves_count == 9:
-            self.status = "tie"
-            return "tie"
+            self.winner = "tie"
+            return self.winner
 
     @staticmethod
     def print_board(board):
         n = len(board)
-        row = " {:<2} |  {:<2} |  {:<2}\n"
-        sep = "---------------\n"
-        string = ""
+        row = "{}    {:<2} |  {:<2} |  {:<2}\n"
+        sep = "    ---------------\n"
+        string = "     {:<2}    {:<2}    {:<2}\n\n".format(1, 2, 3)
         for i in range(n):
-            string += row.format(*[val for val in board[i]])
+            string += row.format(i + 1, *[val for val in board[i]])
             string += sep if i < n - 1 else ""
         print(string)
