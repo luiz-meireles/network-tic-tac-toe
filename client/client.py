@@ -245,13 +245,15 @@ class Client:
             status = self.game.play(int(row), int(column))
             self.__handle_game_status(status)
 
-            self.user_state.waiting()
-
-            print("Aguardando movimento do oponente...")
-            status = self.__handle_oponent_move()
-            self.__handle_game_status(status)
-
-            self.user_state.ready()
+            if status != "invalid":
+                self.user_state.waiting()
+                status = self.__handle_oponent_move()
+                self.__handle_game_status(status)
+                self.user_state.ready()
+            else:
+                print(
+                    "Posição inválida, por favor tente com outros valores de linha/coluna."
+                )
         else:
             payload = {
                 "packet_type": "response",
@@ -265,13 +267,10 @@ class Client:
 
             self.user_state.waiting()
             self.input_non_blocking.init_request()
+            print("Aguardando movimento do oponente...")
 
     def __handle_game_status(self, status):
-        if status == "invalid":
-            print(
-                "Posição inválida, por favor tente com outros valores de linha/coluna."
-            )
-        elif status == "tie" or status == self.game.main_player():
+        if status == "tie" or status == self.game.main_player():
             self.__finish_game(status)
 
     def __handle_oponent_move(self):
@@ -374,7 +373,8 @@ class Client:
         else:
             print(f"O vencedor do jogo foi o jogador {status}")
 
-        if self.user_state.current_state == self.user_state.is_waiting:
+        # erro no dono, verificar estado
+        if self.user_state.current_state == self.user_state.waiting_game_instruction:
             self.user_state.ready()
         self.user_state.game_end()
 
