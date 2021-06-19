@@ -45,7 +45,11 @@ class TicTacToe:
         return None
 
     def __insert_move(self, row, col, player):
+        if row not in range(1, 4) or col not in range(1, 4):
+            return "invalid"
+
         row, col = row - 1, col - 1
+
         if not self.winner and self.moves_count < 9 and not self.board[row][col]:
             self.moves_count += 1
             self.board[row][col] = player

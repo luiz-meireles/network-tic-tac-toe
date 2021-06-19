@@ -120,7 +120,7 @@ class Client:
             self.__login_callback()
         else:
             self.user_state.login_fail()
-            print(response)
+            print("Falha ao efetuar login. Verifique suas credenciais.")
 
     def __login_callback(self):
         payload = {
@@ -132,7 +132,7 @@ class Client:
 
         response = self.default_connection.request(payload)
 
-        print(response)
+        print("Login efetuado com sucesso.")
 
     def __passwd(self, params):
         if len(params) != 2:
@@ -166,7 +166,8 @@ class Client:
 
         print("USUÁRIOS ONLINE")
         for user in response.get("players"):
-            print(user)
+            if user != self.username:
+                print(f"  {user}")
 
     def __leaders(self, params):
         response = self.default_connection.request(
@@ -183,16 +184,17 @@ class Client:
         )
 
         for index, user in enumerate(response.get("leaderboard")):
-            print(
-                "{:<12} {:<12} {:<12} {:<12} {:<12} {:<12}".format(
-                    index + 1,
-                    user.get("username"),
-                    user.get("wins"),
-                    user.get("ties"),
-                    user.get("loses"),
-                    user.get("points"),
+            if user != self.username:
+                print(
+                    "{:<12} {:<12} {:<12} {:<12} {:<12} {:<12}".format(
+                        index + 1,
+                        user.get("username"),
+                        user.get("wins"),
+                        user.get("ties"),
+                        user.get("loses"),
+                        user.get("points"),
+                    )
                 )
-            )
 
     def __new_game(self, params):
         if len(params) != 1:
@@ -327,7 +329,7 @@ class Client:
         )
         self.user_state.log_off()
 
-        print(response)
+        print("Logout efetuado com sucesso.")
 
     def __handle_invitation(self, request, response):
         self.input_non_blocking.init_request()
