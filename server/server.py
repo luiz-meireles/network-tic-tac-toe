@@ -4,7 +4,7 @@ from threading import Thread, Lock, Timer
 from src.auth import hash_password, check_password
 from src.domain.user import User
 from src.db import Storage
-from connection import ServerEventHandler, set_interval
+from src.connection import ServerEventHandler, set_interval
 
 import sqlite3
 import argparse

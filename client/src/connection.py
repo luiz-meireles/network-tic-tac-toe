@@ -7,8 +7,8 @@ from socket import (
     create_connection,
     error as socket_error,
 )
-from ssl import SSLContext, PROTOCOL_TLS_CLIENT, PROTOCOL_TLS_SERVER
-from threading import Thread, Event, Lock, Timer
+from ssl import SSLContext, PROTOCOL_TLS_CLIENT
+from threading import Thread, Event, Lock
 
 import json
 
@@ -184,16 +184,11 @@ class ClientConnectionHandler:
         return connection
 
 
-class ServerEventHandler(Thread):
-    def __init__(
-        self, ip_address, port, bufflen=1024, tls=False, tls_cert=None, tls_key=None
-    ):
+class P2PServerEventHandler(Thread):
+    def __init__(self, ip_address, port, bufflen=1024):
         self.ip_address = ip_address
         self.port = port
         self.bufflen = bufflen
-        self.tls = tls
-        self.tls_cert = tls_cert
-        self.tls_key = tls_key
 
         self.__events_lock = Lock()
         self.__events = {}
@@ -228,11 +223,6 @@ class ServerEventHandler(Thread):
         self.__connection.bind((self.ip_address, self.port))
         self.__connection.listen(1)
 
-        if self.tls:
-            context = SSLContext(PROTOCOL_TLS_SERVER)
-            context.load_cert_chain(self.tls_cert, self.tls_key)
-            self.__connection = context.wrap_socket(self.__connection, server_side=True)
-
         while self.__is_running:
             connection, address = self.__connection.accept()
             connection_th = Thread(
@@ -259,45 +249,3 @@ class ServerEventHandler(Thread):
                     if address in self.__connections:
                         self.__connections.pop(address)
                 break
-
-
-def set_interval(func, sec):
-    def func_wrapper():
-        set_interval(func, sec)
-        func()
-
-    t = Timer(sec, func_wrapper)
-    t.start()
-    return t
-
-
-class Request:
-    def __init__(self, request) -> None:
-        self.request = request
-
-    @property
-    def body(self):
-        return self.request.get("body")
-
-    @property
-    def header(self):
-        return self.request.get("header")
-
-
-class Response:
-    def __init__(self, request, connection):
-        self.request = request
-        self.connection = connection
-
-    def get_request_body(self):
-        return self.request.get("body")
-
-    def send(self, payload):
-        header = self.request.get("header", {})
-        request_id = header.get("request_id")
-        payload = {"header": {"request_id": request_id}, "body": payload}
-
-        try:
-            self.connection.sendall(json.dumps(payload))
-        except socket_error as e:
-            print(e)

@@ -5,12 +5,6 @@ class TicTacToe:
     def __init__(self, player, oponent) -> None:
         self.restart(player, oponent)
 
-    def play(self, lin, col):
-        return self.__insert_move(lin, col, self.player)
-
-    def update_oponent_move(self, lin, col):
-        return self.__insert_move(lin, col, self.oponent)
-
     def restart(self, player, oponent):
         self.board = self.__create_board()
         self.player = player
@@ -18,11 +12,23 @@ class TicTacToe:
         self.winner = None
         self.moves_count = 0
 
-    def __create_board(self):
-        return [[None for j in range(3)] for i in range(3)]
+    def play(self, row, col):
+        return self.__insert_move(row, col, self.player)
 
-    def update_oponent_move(self, lin, col):
-        return self.__insert_move(lin, col, self.oponent)
+    def update_oponent_move(self, row, col):
+        return self.__insert_move(row, col, self.oponent)
+
+    def get_board(self):
+        return self.board
+
+    def get_winner(self):
+        return self.winner
+
+    def main_player(self):
+        return self.player
+
+    def __create_board(self):
+        return [["" for j in range(3)] for i in range(3)]
 
     def __get_main_diagonal(self):
         return [self.board[i][i] for i in range(len(self.board))]
@@ -36,41 +42,40 @@ class TicTacToe:
             return highest_score[0]
         return None
 
-    def __insert_move(self, lin, col, player):
-
-        if not self.winner and self.moves_count < 9 and not self.board[lin][col]:
+    def __insert_move(self, row, col, player):
+        if not self.winner and self.moves_count < 9 and not self.board[row][col]:
             self.moves_count += 1
-            self.board[lin][col] = player
+            self.board[row][col] = player
         else:
             return "invalid"
 
         # Check for winner in main diagonal
-        if lin == col:
+        if row == col:
             main_diagonal = Counter(self.__get_main_diagonal())
             if winner := self.__check_for_winner(main_diagonal):
                 self.winner = winner
                 return winner
 
         # Check for winner in secondary diagonal
-        if lin == 2 and col == 0 or lin == 0 and col == 2:
+        if row == 2 and col == 0 or row == 0 and col == 2:
             secondary_diagonal = Counter(self.__get_secondary_diagonal())
             if winner := self.__check_for_winner(secondary_diagonal):
                 self.winner = winner
                 return winner
 
-        # Check for winner in rows and columns from (lin, col)
+        # Check for winner in rows and columns from (row, col)
         n = len(self.board)
-        column = Counter()
-        row = Counter()
+        _column = Counter()
+        _row = Counter()
 
         for i in range(n):
-            column.update(self.board[lin][i % n])
-            row.update(self.board[i % n][col])
+            _column.update(self.board[row][i % n])
+            _row.update(self.board[i % n][col])
 
-        if winner := self.__check_for_winner(column):
+        if winner := self.__check_for_winner(_column):
             self.winner = winner
             return winner
-        if winner := self.__check_for_winner(row):
+        if winner := self.__check_for_winner(_row):
             self.winner = winner
             return winner
 
@@ -78,3 +83,14 @@ class TicTacToe:
         if self.moves_count == 9:
             self.status = "tie"
             return "tie"
+
+    @staticmethod
+    def print_board(board):
+        n = len(board)
+        row = " {:<2} |  {:<2} |  {:<2}\n"
+        sep = "---------------\n"
+        string = ""
+        for i in range(n):
+            string += row.format(*[val for val in board[i]])
+            string += sep if i < n - 1 else ""
+        print(string)
