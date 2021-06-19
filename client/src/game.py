@@ -92,7 +92,8 @@ class TicTacToe:
         n = len(self.board)
         row = "{}    {:<2} |  {:<2} |  {:<2}\n"
         sep = "    ---------------\n"
-        string = "     {:<2}    {:<2}    {:<2}\n\n".format(1, 2, 3)
+        string = "TABULEIRO:\n\n"
+        string += "     {:<2}    {:<2}    {:<2}\n\n".format(1, 2, 3)
 
         for i in range(n):
             string += row.format(i + 1, *[val for val in self.board[i]])

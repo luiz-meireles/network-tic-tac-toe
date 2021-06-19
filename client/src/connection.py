@@ -104,6 +104,9 @@ class ClientConnectionHandler:
 
         return response
 
+    def close(self):
+        self.__connection.close()
+
     def __handle_response(self, response):
         request_id = response.get("request_id")
         self.__set_response(request_id, response)

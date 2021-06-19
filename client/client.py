@@ -39,7 +39,6 @@ class Client:
         self.p2p_server.on("invitation", self.__handle_invitation)
         self.p2p_server.on("game_init", self.__handle_game_init)
         self.p2p_server.on("game_move", self.__handle_game_move)
-        self.p2p_server.on("finish_game", self.__handle_finish_game)
         self.p2p_server.start()
 
         self.online_users = {}
@@ -258,6 +257,7 @@ class Client:
                     )
                     self.game = TicTacToe(current_choice, player_choice)
                     self.user_state.waiting()
+
             else:
                 print(f"{params[0]} recusou o seu convite para um novo jogo.")
         else:
@@ -285,6 +285,8 @@ class Client:
         move_status = self.game.play(int(row), int(column))
 
         if not move_status or move_status != "invalid":
+            print(self.game)
+            print()
             self.user_state.waiting()
 
             if self.game_controller:
@@ -307,32 +309,10 @@ class Client:
                 )
 
             if move_status:
+                self.user_state.ready()
                 self.__finish_game(move_status)
         elif move_status == "invalid":
             print("Jogada inválida, por favor tente novamente.")
-
-    def __handle_game_status(self, status):
-        if status and status != "invalid":
-            self.__finish_game(status)
-
-    def __handle_oponent_move(self):
-        response = self.p2p_connection.request(
-            {
-                "packet_type": "request",
-                "packet_name": "game_move",
-                "board": self.game.get_board(),
-            }
-        )
-
-        if response.get("status") == "OK":
-            move = response.get("move")
-            status = self.game.update_oponent_move(int(move[0]), int(move[1]))
-
-            if status == "invalid" and not self.game.get_winner():
-                self.__handle_oponent_move()
-            else:
-                TicTacToe.print_board(self.game.get_board())
-                return status
 
     def __finish_game(self, status):
         if status == "tie":
@@ -340,9 +320,13 @@ class Client:
         else:
             print(f"O vencedor do jogo foi o jogador {status}")
 
+        print()
+
+        if self.game_controller:
+            self.p2p_connection.close()
+
         self.game = None
         self.game_controller = None
-
         self.user_state.game_end()
 
     def __logout(self, params):
@@ -407,15 +391,14 @@ class Client:
             "request_id": request.get("request_id"),
             "player_choice": player_choice,
         }
-
         response.sendall(json.dumps(payload).encode("ascii"))
 
     def __handle_game_move(self, request, response):
-        if self.game_controller:
+        if not self.game_controller:
             response.sendall(
                 json.dumps(
                     {
-                        "packet_type": "bla",
+                        "packet_type": "response",
                         "packet_name": "game_move",
                         "request_id": request.get("request_id"),
                         "status": "OK",
@@ -423,29 +406,16 @@ class Client:
                 ).encode("ascii")
             )
 
+        self.input_non_blocking.init_request()
         move = request.get("move")
-        print(request)
         move_status = self.game.update_oponent_move(int(move[0]), int(move[1]))
         print(self.game)
+        print()
         self.user_state.ready()
+        self.input_non_blocking.end_request()
 
         if move_status:
             self.__finish_game(move_status)
-
-    def __handle_finish_game(self, request, response):
-        payload = {
-            "packet_type": "response",
-            "packet_name": "finish_game",
-            "request_id": request.get("request_id"),
-            "status": "OK",
-        }
-        TicTacToe.print_board(request.get("board"))
-        status = request.get("winner")
-
-        self.__finish_game_callback(status)
-
-        response.sendall(json.dumps(payload).encode("ascii"))
-        self.input_non_blocking.end_request()
 
 
 def main():
