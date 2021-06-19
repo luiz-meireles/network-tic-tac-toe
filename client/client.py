@@ -217,7 +217,7 @@ class Client:
                 }
             )
 
-            if response.get("status") == "OK":
+            if response.get("status") == "ACCEPT":
                 self.user_state.game_init()
 
                 self.input_non_blocking.init_request()
@@ -244,13 +244,14 @@ class Client:
         if self.game:
             status = self.game.play(int(row), int(column))
             self.__handle_game_status(status)
+            print(status)
 
-            if status != "invalid":
+            if not status:
                 self.user_state.waiting()
                 status = self.__handle_oponent_move()
-                self.__handle_game_status(status)
                 self.user_state.ready()
-            else:
+                self.__handle_game_status(status)
+            elif status == "invalid":
                 print(
                     "Posição inválida, por favor tente com outros valores de linha/coluna."
                 )
@@ -270,7 +271,7 @@ class Client:
             print("Aguardando movimento do oponente...")
 
     def __handle_game_status(self, status):
-        if status == "tie" or status == self.game.main_player():
+        if status and status != "invalid":
             self.__finish_game(status)
 
     def __handle_oponent_move(self):
@@ -306,6 +307,16 @@ class Client:
         self.__finish_game_callback(status)
         self.game = None
 
+    def __finish_game_callback(self, status):
+        if status == "tie":
+            print("O jogo terminou em empate! :(")
+        else:
+            print(f"O vencedor do jogo foi o jogador {status}")
+
+        if self.user_state.current_state == self.user_state.waiting_game_instruction:
+            self.user_state.ready()
+        self.user_state.game_end()
+
     def __logout(self, params):
         response = self.default_connection.request(
             {
@@ -330,7 +341,7 @@ class Client:
                 "packet_type": "response",
                 "packet_name": "invitation",
                 "request_id": request.get("request_id"),
-                "status": "OK",
+                "status": "ACCEPT",
             }
 
             self.user_state.game_init()
@@ -366,17 +377,6 @@ class Client:
 
         response.sendall(json.dumps(payload).encode("ascii"))
         self.input_non_blocking.end_request()
-
-    def __finish_game_callback(self, status):
-        if status == "tie":
-            print("O jogo terminou em empate! :(")
-        else:
-            print(f"O vencedor do jogo foi o jogador {status}")
-
-        # erro no dono, verificar estado
-        if self.user_state.current_state == self.user_state.waiting_game_instruction:
-            self.user_state.ready()
-        self.user_state.game_end()
 
 
 def main():
