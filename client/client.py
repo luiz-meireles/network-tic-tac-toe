@@ -218,6 +218,7 @@ class Client:
             self.p2p_connection = ClientConnectionHandler(
                 target_user_addr, target_user_port
             )
+            self.p2p_connection.close()
             self.p2p_connection.on("game_move", self.__handle_game_move)
 
             response = self.p2p_connection.request(

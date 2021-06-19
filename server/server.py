@@ -39,19 +39,11 @@ class Server:
         self.secure_connection_handler.on("password_change", self.change_password)
         self.secure_connection_handler.start()
 
-        self.connection_handler.on("heartbeat", self.heartbeat_recv)
-        self.connection_handler.on("begin", self.new_game)
         self.connection_handler.on("new_user_connection", self.new_user_connection)
         self.connection_handler.on("list_players", self.list_players)
         self.connection_handler.on("leaderboard", self.leaderboard)
         self.connection_handler.on("logout", self.logout)
         self.connection_handler.start()
-
-    def heartbeat_recv(self, request, response):
-        pass
-
-    def new_game(self, request, response):
-        pass
 
     def list_players(self, request, response):
         payload = {

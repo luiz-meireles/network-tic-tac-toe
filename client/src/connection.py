@@ -73,6 +73,8 @@ class ClientConnectionHandler:
         self.__requests = {}
 
         self.__connection_event = Event()
+        self.__connection = None
+
         self.__events = {}
         if self.__keep_alive:
             self.__run()
@@ -105,7 +107,8 @@ class ClientConnectionHandler:
         return response
 
     def close(self):
-        self.__connection.close()
+        if self.__connection:
+            self.__connection.close()
 
     def __handle_response(self, response):
         request_id = response.get("request_id")
@@ -135,21 +138,24 @@ class ClientConnectionHandler:
         if self.tls:
             self.__connection = self.__tls_wrapper(self.__connection)
 
-        while data := self.__connection.recv(self.bufflen):
-            if data == b"OK":
-                self.__connection_event.set()
-                continue
+        try:
+            while data := self.__connection.recv(self.bufflen):
+                if data == b"OK":
+                    self.__connection_event.set()
+                    continue
 
-            if data := json.loads(data or "{}"):
-                packet_type = data.get("packet_type")
-                if packet_type == "response":
-                    self.__handle_response(data)
-                elif packet_type == "request":
-                    event_handler_th = self.__handle_event(data)
-                    event_handler_threads.append(event_handler_th)
+                if data := json.loads(data or "{}"):
+                    packet_type = data.get("packet_type")
+                    if packet_type == "response":
+                        self.__handle_response(data)
+                    elif packet_type == "request":
+                        event_handler_th = self.__handle_event(data)
+                        event_handler_threads.append(event_handler_th)
 
-            if not self.__keep_alive:
-                break
+                if not self.__keep_alive:
+                    break
+        except socket_error:
+            print("Connection with peer closed")
 
         for thead in event_handler_threads:
             thead.join()
