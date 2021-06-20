@@ -7,9 +7,10 @@ from socket import (
     create_connection,
     error as socket_error,
 )
+from contextlib import contextmanager
 from ssl import SSLContext, PROTOCOL_TLS_CLIENT
 from threading import Thread, Event, Lock
-
+from types import SimpleNamespace
 import json
 
 
@@ -86,9 +87,10 @@ class ClientConnectionHandler:
     def on(self, event, event_handler):
         self.__events[event] = event_handler
 
-    def request(self, request_body):
+    def request(self, packet_name, data={}, packet_type="request"):
+        request_body = {"packet_type": packet_type, "packet_name": packet_name, **data}
 
-        if not self.__keep_alive:
+        if not self.__keep_alive or (self.__keep_alive and not self.__connection):
             self.__run()
         self.__connection_event.wait()
 
@@ -154,14 +156,16 @@ class ClientConnectionHandler:
 
                 if not self.__keep_alive:
                     break
-        except socket_error:
+
+        except socket_error as e:
             pass
 
         for thead in event_handler_threads:
             thead.join()
 
         self.__connection_event.clear()
-        self.__connection.close()
+        if self.__connection:
+            self.__connection.close()
         self.__connection = None
 
     def __get_response(self, request_id):
@@ -269,3 +273,35 @@ class P2PServerEventHandler(Thread):
                     break
         except socket_error:
             pass
+
+
+@contextmanager
+def connection_except():
+    try:
+        yield
+    except socket_error as e:
+        print("Falha na conexão. Tente novamennte.", e)
+
+
+def response_wrapper(handler):
+    def _send(request_id, connection):
+        def send(packet_name, data={}, packet_type="response"):
+            payload = {"packet_type": packet_type, "packet_name": packet_name, **data}
+            if request_id:
+                payload.update({"request_id": request_id})
+
+            connection.sendall(json.dumps(payload).encode("ascii"))
+
+        send_obj = SimpleNamespace(send=send)
+
+        return send_obj
+
+    def wrapper(self, request, connection):
+
+        handler(
+            self,
+            SimpleNamespace(**request),
+            _send(request.get("request_id"), connection),
+        )
+
+    return wrapper

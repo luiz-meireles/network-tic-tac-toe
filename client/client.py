@@ -1,11 +1,15 @@
-from socket import create_connection
+from socket import create_connection, socket
 from ssl import SSLContext, PROTOCOL_TLS_CLIENT
 from random import randint
-from src.connection import ClientConnectionHandler, P2PServerEventHandler
+from src.connection import (
+    connection_except,
+    response_wrapper,
+    ClientConnectionHandler,
+    P2PServerEventHandler,
+)
 from src.state.user import UserStateMachine
 from src.input_read import InputRead
 from src.game import TicTacToe
-
 import argparse
 import json
 
@@ -39,6 +43,7 @@ class Client:
         self.p2p_server.on("invitation", self.__handle_invitation)
         self.p2p_server.on("game_init", self.__handle_game_init)
         self.p2p_server.on("game_move", self.__handle_game_move)
+        self.p2p_server.on("game_end", self.__handle_game_end)
         self.p2p_server.start()
 
         self.online_users = {}
@@ -92,15 +97,14 @@ class Client:
                 f"adduser necessita de 2 argumentos, no entanto, {len(params)} foram passados"
             )
             return
-
-        response = self.secure_connection.request(
-            {
-                "packet_type": "request",
-                "packet_name": "adduser",
-                "username": params[0],
-                "password": params[1],
-            },
-        )
+        with connection_except():
+            response = self.secure_connection.request(
+                "adduser",
+                {
+                    "username": params[0],
+                    "password": params[1],
+                },
+            )
 
         if response and response.get("status") == "OK":
             print("Usuário adicionado com sucesso.")
@@ -112,15 +116,14 @@ class Client:
                 f"login necessita de 2 argumentos, no entanto, {len(params)} foram passados."
             )
             return
-
-        response = self.secure_connection.request(
-            {
-                "packet_type": "request",
-                "packet_name": "login",
-                "username": params[0],
-                "password": params[1],
-            }
-        )
+        with connection_except():
+            response = self.secure_connection.request(
+                "login",
+                {
+                    "username": params[0],
+                    "password": params[1],
+                },
+            )
 
         if response.get("status") == "OK":
             self.username = params[0]
@@ -131,14 +134,14 @@ class Client:
             print("Falha ao efetuar login. Verifique suas credenciais.")
 
     def __login_callback(self):
-        payload = {
-            "packet_type": "request",
-            "packet_name": "new_user_connection",
-            "username": self.username,
-            "listen_port": self.listen_port,
-        }
-
-        self.default_connection.request(payload)
+        with connection_except():
+            self.default_connection.request(
+                "new_user_connection",
+                {
+                    "username": self.username,
+                    "listen_port": self.listen_port,
+                },
+            )
 
         print("Login efetuado com sucesso.")
 
@@ -148,28 +151,22 @@ class Client:
                 f"passwd necessita de 2 argumentos, no entanto, {len(params)} foram passados."
             )
             return
-
-        response = self.secure_connection.request(
-            {
-                "packet_type": "request",
-                "packet_name": "password_change",
-                "username": self.username,
-                "current_password": params[0],
-                "new_password": params[1],
-            }
-        )
+        with connection_except():
+            response = self.secure_connection.request(
+                "password_change",
+                {
+                    "username": self.username,
+                    "current_password": params[0],
+                    "new_password": params[1],
+                },
+            )
 
         if response.get("status") == "OK":
             print("Password changed")
 
     def __players(self, params):
-        response = self.default_connection.request(
-            {
-                "packet_type": "request",
-                "packet_name": "list_players",
-            }
-        )
-
+        with connection_except():
+            response = self.default_connection.request("list_players")
         self.online_users = response.get("players")
 
         print("USUÁRIOS ONLINE")
@@ -178,12 +175,8 @@ class Client:
                 print(f"  {user}")
 
     def __leaders(self, params):
-        response = self.default_connection.request(
-            {
-                "packet_type": "request",
-                "packet_name": "leaderboard",
-            }
-        )
+        with connection_except():
+            response = self.default_connection.request("leaderboard")
 
         print(
             "{:<12} {:<12} {:<12} {:<12} {:<12} {:<12}".format(
@@ -220,13 +213,13 @@ class Client:
             )
             self.p2p_connection.on("game_move", self.__handle_game_move)
 
-            response = self.p2p_connection.request(
-                {
-                    "packet_type": "request",
-                    "packet_name": "invitation",
-                    "username": self.username,
-                }
-            )
+            with connection_except():
+                response = self.p2p_connection.request(
+                    "invitation",
+                    {
+                        "username": self.username,
+                    },
+                )
 
             if response.get("status") == "ACCEPT":
                 self.user_state.game_init()
@@ -239,15 +232,14 @@ class Client:
                     player_choice = self.__player_choice()
                     current_choice = "O" if player_choice == "X" else "X"
                     self.game = TicTacToe(player_choice, current_choice)
-
-                response = self.p2p_connection.request(
-                    {
-                        "packet_type": "request",
-                        "packet_name": "game_init",
-                        "first_player": first_player,
-                        "player_choice": player_choice,
-                    }
-                )
+                with connection_except():
+                    response = self.p2p_connection.request(
+                        "game_init",
+                        {
+                            "first_player": first_player,
+                            "player_choice": player_choice,
+                        },
+                    )
 
                 if first_player == 1:
                     player_choice = response.get("player_choice")
@@ -265,10 +257,9 @@ class Client:
             )
 
     def __player_choice(self):
-        self.input_non_blocking.init_request()
-        print("Você foi sorteado como primeiro jogador...")
-        player = input(f"Escolha qual jogador você deseja? (X/O)\n")
-        self.input_non_blocking.end_request()
+        with self.input_non_blocking.block_input():
+            print("\nVocê foi sorteado como primeiro jogador...")
+            player = input(f"Escolha qual jogador você deseja? (X/O)\n")
 
         return player
 
@@ -280,6 +271,11 @@ class Client:
             return
 
         row, column = params
+
+        if not (row.isnumeric() or column.isnumeric()):
+            print("begin aceita apenas números entre 1 e 3.")
+            return
+
         move_status = self.game.play(int(row), int(column))
 
         if not move_status or move_status != "invalid":
@@ -288,13 +284,13 @@ class Client:
             self.user_state.waiting()
 
             if self.game_controller:
-                self.p2p_connection.request(
-                    {
-                        "packet_type": "request",
-                        "packet_name": "game_move",
-                        "move": [row, column],
-                    }
-                )
+                with connection_except():
+                    self.p2p_connection.request(
+                        "game_move",
+                        {
+                            "move": [row, column],
+                        },
+                    )
             else:
                 self.p2p_server.emit(
                     json.dumps(
@@ -321,14 +317,14 @@ class Client:
 
         print()
         player_status = "win" if self.game.main_player() == status else "lose"
-        self.default_connection.request(
-            {
-                "packet_type": "request",
-                "packet_name": "update_player_status",
-                "username": self.username,
-                "game_status": status if status == "tie" else player_status,
-            }
-        )
+        with connection_except():
+            self.default_connection.request(
+                "update_player_status",
+                {
+                    "username": self.username,
+                    "game_status": status if status == "tie" else player_status,
+                },
+            )
 
         if self.game_controller:
             self.p2p_connection.close()
@@ -345,50 +341,42 @@ class Client:
         self.user_state.game_end()
 
     def __logout(self, params):
-        self.default_connection.request(
-            {
-                "packet_type": "request",
-                "packet_name": "logout",
-                "username": self.username,
-            }
-        )
+        with connection_except():
+            self.default_connection.request(
+                "logout",
+                {
+                    "username": self.username,
+                },
+            )
         self.user_state.log_off()
 
         print("Logout efetuado com sucesso.")
 
+    @response_wrapper
     def __handle_invitation(self, request, response):
-        self.input_non_blocking.init_request()
+        with self.input_non_blocking.block_input():
+            command = input(
+                f"\nO usuário{request.username} está querendo iniciar um novo jogo, você aceita a partida? S/N\n"
+            ).strip()
 
-        command = input(
-            f"{request.get('username')} está querendo iniciar um novo jogo, você aceita a partida? S/N\n"
-        )
+            status = "ACCEPT" if command.lower() == "s" else "REFUSED"
 
-        if command == "S":
-            payload = {
-                "packet_type": "response",
-                "packet_name": "invitation",
-                "request_id": request.get("request_id"),
-                "status": "ACCEPT",
-            }
-        else:
-            payload = {
-                "packet_type": "response",
-                "packet_name": "invitation",
-                "request_id": request.get("request_id"),
-                "status": "REFUSED",
-            }
+            response.send(
+                "invitation",
+                {
+                    "status": status,
+                },
+            )
 
-        response.sendall(json.dumps(payload).encode("ascii"))
-        self.input_non_blocking.end_request()
-
+    @response_wrapper
     def __handle_game_init(self, request, response):
         self.user_state.game_init()
         self.game_controller = False
-        first_player = request.get("first_player")
+        first_player = request.first_player
         player_choice = None
 
         if first_player == 0:
-            player_choice = request.get("player_choice")
+            player_choice = request.player_choice
             current_choice = "O" if player_choice == "X" else "X"
             print(
                 f"O oponente foi sorteado como primeiro jogador, você será o jogador {current_choice}."
@@ -400,40 +388,33 @@ class Client:
             current_choice = "O" if player_choice == "X" else "X"
             self.game = TicTacToe(player_choice, current_choice)
 
-        payload = {
-            "packet_type": "response",
-            "packet_name": "game_init",
-            "request_id": request.get("request_id"),
-            "player_choice": player_choice,
-        }
-        response.sendall(json.dumps(payload).encode("ascii"))
+        response.send("game_init", {"player_choice": player_choice})
 
+    @response_wrapper
     def __handle_game_move(self, request, response):
-        self.input_non_blocking.init_request()
-
-        if not self.game_controller:
-            response.sendall(
-                json.dumps(
+        with self.input_non_blocking.block_input():
+            if not self.game_controller:
+                response.send(
+                    "game_move",
                     {
-                        "packet_type": "response",
-                        "packet_name": "game_move",
-                        "request_id": request.get("request_id"),
                         "status": "OK",
-                    }
-                ).encode("ascii")
-            )
+                    },
+                )
 
-        move = request.get("move")
-        move_status = self.game.update_oponent_move(int(move[0]), int(move[1]))
+            row, col = request.move
+            move_status = self.game.update_oponent_move(int(row), int(col))
 
-        print(self.game)
-        print()
-        self.user_state.ready()
+            print(self.game)
+            print()
+            self.user_state.ready()
 
-        if move_status:
-            self.__finish_game(move_status)
+            if move_status:
+                self.__finish_game(move_status)
 
-        self.input_non_blocking.end_request()
+    @response_wrapper
+    def __handle_game_end(self, request, response):
+        with self.input_non_blocking.block_input():
+            pass
 
 
 def main():

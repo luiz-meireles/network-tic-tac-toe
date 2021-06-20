@@ -1,5 +1,6 @@
 from threading import Thread, Event
 from termios import TCIFLUSH, tcflush
+from contextlib import contextmanager
 
 import sys
 import select
@@ -52,6 +53,12 @@ class InputRead(Thread):
     def end_request(self):
         os.read(self.read_pipe, 1)
         self.pause_event.set()
+
+    @contextmanager
+    def block_input(self):
+        self.init_request()
+        yield
+        self.end_request()
 
     def treat_input(self, linein):
         self.input_callback(linein)

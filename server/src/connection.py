@@ -9,7 +9,7 @@ from socket import (
 )
 from ssl import SSLContext, PROTOCOL_TLS_CLIENT, PROTOCOL_TLS_SERVER
 from threading import Thread, Lock, Timer
-
+from types import SimpleNamespace
 import json
 
 
@@ -99,3 +99,26 @@ def set_interval(func, sec):
     t.start()
 
     return t
+
+
+def response_wrapper(handler):
+    def _send(request, connection):
+        def send(packet_name, data={}, packet_type="response"):
+            connection.sendall(
+                json.dumps(
+                    {
+                        "packet_type": packet_type,
+                        "packet_name": packet_name,
+                        "request_id": request.request_id,
+                        **data,
+                    }
+                ).encode("ascii")
+            )
+
+        return SimpleNamespace(send=send, peername=connection.getpeername())
+
+    def wrapper(self, request, connection):
+        req_obg = SimpleNamespace(**request)
+        handler(self, req_obg, _send(req_obg, connection))
+
+    return wrapper
