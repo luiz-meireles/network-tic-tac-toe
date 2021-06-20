@@ -76,8 +76,8 @@ class Storage:
 
     def insert_log(self, type, data):
         cursor = self._connection.cursor()
-        sql_stmt = f"INSERT INTO logs (created_at, type, log) VALUES (?, ?, ?)"
-        cursor.execute(sql_stmt, (datetime.utcnow(), type, json.dumps(data)))
+        sql_query = f"INSERT INTO logs (created_at, type, log) VALUES (?, ?, ?)"
+        cursor.execute(sql_query, (datetime.utcnow(), type, json.dumps(data)))
         self._connection.commit()
 
 

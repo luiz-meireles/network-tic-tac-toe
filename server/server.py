@@ -11,7 +11,7 @@ import json
 
 class Server:
     def __init__(self, args):
-        self.ip_address = "127.0.0.1"
+        self.ip_address = "192.168.1.169"
         self.default_port = args.port
         self.tls_port = args.tls_port
         self.db = Storage()

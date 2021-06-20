@@ -12,8 +12,6 @@ class InputRead(Thread):
     def __init__(self, input_callback=None):
         self.read_pipe, self.write_pipe = os.pipe()
         self.read_list = [sys.stdin, self.read_pipe]
-        self.timeout = 0.1
-        self.last_work_time = time.time()
 
         self.input_callback = input_callback
         self.pause_event = Event()
@@ -62,4 +60,3 @@ class InputRead(Thread):
 
     def treat_input(self, linein):
         self.input_callback(linein)
-        self.last_work_time = time.time()

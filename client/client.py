@@ -1,5 +1,5 @@
 from random import randint
-import signal
+from socket import gethostname, gethostbyname, gethostbyaddr
 from src.connection import (
     connection_except,
     response_wrapper,
@@ -11,6 +11,7 @@ from src.input_read import InputRead
 from src.game import TicTacToe
 import argparse
 import json
+import signal
 
 
 class Client:
@@ -38,7 +39,8 @@ class Client:
 
         # self.default_connection.on("heartbeat", self.__heartbeat)
 
-        self.p2p_server = P2PServerEventHandler("127.0.0.1", self.listen_port)
+        self.local_ip = gethostbyname(gethostname())
+        self.p2p_server = P2PServerEventHandler(self.local_ip, self.listen_port)
         self.p2p_server.on("invitation", self.__handle_invitation)
         self.p2p_server.on("game_init", self.__handle_game_init)
         self.p2p_server.on("game_move", self.__handle_game_move)
@@ -265,14 +267,14 @@ class Client:
     def __send(self, params):
         if len(params) != 2:
             print(
-                f"begin necessita de 2 argumentos, no entanto, {len(params)} foram passados."
+                f"send necessita de 2 argumentos, no entanto, {len(params)} foram passados."
             )
             return
 
         row, column = params
 
         if not (row.isnumeric() or column.isnumeric()):
-            print("begin aceita apenas números entre 1 e 3.")
+            print("send aceita apenas caracteres númericos entre 1 e 3.")
             return
 
         move_status = self.game.play(int(row), int(column))
@@ -308,7 +310,6 @@ class Client:
             print("Jogada inválida, por favor tente novamente.")
 
     def __finish_game(self, status):
-
         if status == "tie":
             print("O jogo terminou em empate! :(")
         else:
