@@ -49,7 +49,10 @@ class Server:
         self.connection_handler.on("list_players", self.__list_players)
         self.connection_handler.on("leaderboard", self.__leaderboard)
         self.connection_handler.on("logout", self.__logout)
+        self.connection_handler.on("init_game_permission", self.__init_game_permission)
+        self.connection_handler.on("init_game", self.__init_game)
         self.connection_handler.on("update_player_status", self.__update_player_status)
+        self.connection_handler.on("finish_game", self.__finish_game)
         self.connection_handler.on("connection", self.__connection)
         self.connection_handler.start()
 
@@ -102,7 +105,6 @@ class Server:
                     },
                 )
             except sqlite3.IntegrityError:
-
                 response.send(
                     "change_password",
                     {
@@ -166,7 +168,8 @@ class Server:
         addr = response.peername
 
         with self.logged_users_lock:
-            self.logged_users[username] = [addr[0], client_listen_port]
+            self.logged_users[username] = [addr[0], client_listen_port, "IDLE"]
+
         response.send(
             "new_user_connection",
             {
@@ -193,9 +196,76 @@ class Server:
     def __update_player_status(self, request, response):
         username, game_status = request.username, request.game_status
 
+        with self.logged_users_lock:
+            self.logged_users[username][2] = "IDLE"
+
         with self.db_lock:
             self.db.update_user_status(username, game_status)
+
         response.send("update_game_status", {"status": "OK"})
+
+    @response_wrapper
+    def __init_game_permission(self, request, response):
+        player_one, player_two = request.users
+
+        with self.logged_users_lock:
+            player_one_data = self.logged_users.get(player_one)
+            player_two_data = self.logged_users.get(player_two)
+
+            if (
+                player_one_data
+                and player_one_data[2] == "IDLE"
+                and player_two_data
+                and player_two_data[2] == "IDLE"
+            ):
+                response.send("init_game", {"status": "OK"})
+                self.logged_users[player_one][2] = "WAITING"
+                self.logged_users[player_two][2] = "WAITING"
+            else:
+                response.send("init_game", {"status": "FAIL"})
+
+    @response_wrapper
+    def __init_game(self, request, response):
+        player_one, player_two = request.users
+
+        with self.logged_users_lock:
+            if request.invitation_status == "ACCEPT":
+                self.logged_users[player_one][2] = "PLAYING"
+                self.logged_users[player_two][2] = "PLAYING"
+
+                with self.db_lock:
+                    self.db.insert_log(
+                        "new_game",
+                        {
+                            "ip_player_one": self.logged_users[player_one][0],
+                            "username_player_one": player_one,
+                            "ip_player_two": self.logged_users[player_two][0],
+                            "username_player_two": player_two,
+                        },
+                    )
+            elif request.invitation_status == "REFUSED":
+                self.logged_users[player_one][2] = "IDLE"
+                self.logged_users[player_two][2] = "IDLE"
+
+        response.send("init_game", {"status": "OK"})
+
+    @response_wrapper
+    def __finish_game(self, request, response):
+        player_one, player_two = request.users
+
+        with self.logged_users_lock:
+            with self.db_lock:
+                self.db.insert_log(
+                    "end_game",
+                    {
+                        "ip_player_one": self.logged_users[player_one][0],
+                        "username_player_one": player_one,
+                        "ip_player_two": self.logged_users[player_two][0],
+                        "username_player_two": player_two,
+                    },
+                )
+
+        response.send("finish_game", {"status": "OK"})
 
     def __heartbeat(self):
         address_errors = self.connection_handler.emit(
@@ -203,6 +273,7 @@ class Server:
                 "ascii"
             )
         )
+
         if len(address_errors) > 0:
             with self.db_lock:
                 for addr in address_errors:

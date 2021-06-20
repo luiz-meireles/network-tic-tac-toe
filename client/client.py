@@ -24,6 +24,7 @@ class Client:
 
         self.user_state = UserStateMachine()
         self.username = ""
+
         self.default_connection = ClientConnectionHandler(
             self.ip_address, self.default_port
         )
@@ -68,9 +69,14 @@ class Client:
             "begin": {"callback": self.__new_game, "state": [self.user_state.logged]},
             "send": {"callback": self.__send, "state": [self.user_state.playing_game]},
             "logout": {"callback": self.__logout, "state": [self.user_state.logged]},
+            "exit": {
+                "callback": self.__exit_client,
+                "state": [self.user_state.logged_out, self.user_state.logged],
+            },
         }
 
         self.game = None
+        self.p2p_connection = None
 
     def run(self):
         self.input_non_blocking = InputRead(self.__handle_command)
@@ -115,7 +121,6 @@ class Client:
             print("Usuário adicionado com sucesso.")
 
     def __login(self, params):
-        # TODO: don't let login twice, improve user output message.
         if len(params) != 2:
             print(
                 f"login necessita de 2 argumentos, no entanto, {len(params)} foram passados."
@@ -167,17 +172,22 @@ class Client:
             )
 
         if response.get("status") == "OK":
-            print("Password changed")
+            print("Senha atualizada com sucesso.")
+        else:
+            print("Senha atual incorreta.")
 
     def __players(self, params):
         with connection_except():
             response = self.default_connection.request("list_players")
         self.online_users = response.get("players")
 
-        print("USUÁRIOS ONLINE")
-        for user in response.get("players"):
+        print("\nUSUÁRIOS ONLINE\n")
+        for user, data in self.online_users.items():
             if user != self.username:
-                print(f"  {user}")
+                print(
+                    f"  {user} - {'ACEITANDO PARTIDA' if data[2] == 'IDLE' else 'INDISPONÍVEL'}"
+                )
+        print()
 
     def __leaders(self, params):
         with connection_except():
@@ -209,10 +219,34 @@ class Client:
             )
             return
 
-        user = self.online_users.get(params[0])
+        oponent_user = params[0]
+        oponent_data = self.online_users.get(oponent_user)
 
-        if user:
-            target_user_addr, target_user_port = user
+        if oponent_data:
+            target_user_addr, target_user_port, target_user_state = oponent_data
+
+            if target_user_state != "IDLE":
+                print(
+                    f"{oponent_user} se encontra indisponível no momento, por favor escolha outro jogador."
+                )
+
+                return
+
+            with connection_except():
+                permission_response = self.default_connection.request(
+                    "init_game_permission",
+                    {
+                        "users": [self.username, oponent_user],
+                    },
+                )
+
+            if permission_response.get("status") != "OK":
+                print(
+                    "Houve algum problema, por favor use o comando 'list' novamente para buscar por jogadores disponíveis."
+                )
+
+                return
+
             self.p2p_connection = ClientConnectionHandler(
                 target_user_addr, target_user_port
             )
@@ -226,9 +260,19 @@ class Client:
                     },
                 )
 
+            with connection_except():
+                self.default_connection.request(
+                    "init_game",
+                    {
+                        "users": [self.username, oponent_user],
+                        "invitation_status": response.get("status"),
+                    },
+                )
+
             if response.get("status") == "ACCEPT":
                 self.user_state.game_init()
                 self.game_controller = True
+                self.oponent_user = oponent_user
 
                 first_player = randint(0, 1)
                 player_choice = None
@@ -331,6 +375,15 @@ class Client:
             )
 
         if self.game_controller:
+            with connection_except():
+                self.default_connection.request(
+                    "finish_game",
+                    {
+                        "users": [self.username, self.oponent_user],
+                    },
+                )
+
+            self.oponent_user = None
             self.p2p_connection.close()
             self.p2p_connection = None
         else:
@@ -356,11 +409,21 @@ class Client:
 
         print("Logout efetuado com sucesso.")
 
+    def __exit_client(self, params):
+        if self.user_state.current_state == self.user_state.logged:
+            self.__logout(None)
+
+        if self.p2p_connection:
+            self.p2p_connection.close()
+
+        self.p2p_server.stop_server()
+        exit(0)
+
     @response_wrapper
     def __handle_invitation(self, request, response):
         with self.input_non_blocking.block_input():
             command = input(
-                f"\nO usuário{request.username} está querendo iniciar um novo jogo, você aceita a partida? S/N\n"
+                f"\nO usuário {request.username} está querendo iniciar um novo jogo, você aceita a partida? S/N\n"
             ).strip()
 
             status = "ACCEPT" if command.lower() == "s" else "REFUSED"

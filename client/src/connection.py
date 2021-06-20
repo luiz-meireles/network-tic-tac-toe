@@ -81,7 +81,7 @@ class ClientConnectionHandler:
             self.__run()
 
     def __run(self):
-        listener_th = Thread(target=self.__listen)
+        listener_th = Thread(target=self.__listen, daemon=True)
         listener_th.start()
 
     def on(self, event, event_handler):
@@ -211,7 +211,7 @@ class P2PServerEventHandler(Thread):
         self.__is_running = True
         self.__connection = None
 
-        Thread.__init__(self)
+        Thread.__init__(self, daemon=True)
 
     def on(self, event, event_handler):
         self.__events[event] = event_handler
@@ -252,6 +252,10 @@ class P2PServerEventHandler(Thread):
                 conn.close()
 
             self.__connections = {}
+
+    def stop_server(self):
+        self.clear_connections()
+        self.__is_running = False
 
     def __handle_connection(self, connection, address):
         # TODO: improve client disconnection handler
