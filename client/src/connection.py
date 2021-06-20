@@ -155,7 +155,7 @@ class ClientConnectionHandler:
                 if not self.__keep_alive:
                     break
         except socket_error:
-            print("Connection with peer closed")
+            pass
 
         for thead in event_handler_threads:
             thead.join()
@@ -242,20 +242,30 @@ class P2PServerEventHandler(Thread):
             with self.__connections_lock:
                 self.__connections[address] = (connection, connection_th)
 
+    def clear_connections(self):
+        with self.__connections_lock:
+            for conn, _ in self.__connections.values():
+                conn.close()
+
+            self.__connections = {}
+
     def __handle_connection(self, connection, address):
         # TODO: improve client disconnection handler
         connection.sendall(b"OK")
-        while self.__is_running:
-            payload = connection.recv(self.bufflen)
+        try:
+            while self.__is_running:
+                payload = connection.recv(self.bufflen)
 
-            if payload:
-                data = json.loads(payload)
-                event_type = data.get("packet_name")
+                if payload:
+                    data = json.loads(payload)
+                    event_type = data.get("packet_name")
 
-                with self.__events_lock:
-                    self.__events.get(event_type, lambda *_: _)(data, connection)
-            else:
-                with self.__connections_lock:
-                    if address in self.__connections:
-                        self.__connections.pop(address)
-                break
+                    with self.__events_lock:
+                        self.__events.get(event_type, lambda *_: _)(data, connection)
+                else:
+                    with self.__connections_lock:
+                        if address in self.__connections:
+                            self.__connections.pop(address)
+                    break
+        except socket_error:
+            pass

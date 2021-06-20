@@ -103,7 +103,7 @@ class Client:
         )
 
         if response and response.get("status") == "OK":
-            pass
+            print("Usuário adicionado com sucesso.")
 
     def __login(self, params):
         # TODO: don't let login twice, improve user output message.
@@ -138,7 +138,7 @@ class Client:
             "listen_port": self.listen_port,
         }
 
-        response = self.default_connection.request(payload)
+        self.default_connection.request(payload)
 
         print("Login efetuado com sucesso.")
 
@@ -218,7 +218,6 @@ class Client:
             self.p2p_connection = ClientConnectionHandler(
                 target_user_addr, target_user_port
             )
-            self.p2p_connection.close()
             self.p2p_connection.on("game_move", self.__handle_game_move)
 
             response = self.p2p_connection.request(
@@ -258,7 +257,6 @@ class Client:
                     )
                     self.game = TicTacToe(current_choice, player_choice)
                     self.user_state.waiting()
-
             else:
                 print(f"{params[0]} recusou o seu convite para um novo jogo.")
         else:
@@ -282,7 +280,6 @@ class Client:
             return
 
         row, column = params
-
         move_status = self.game.play(int(row), int(column))
 
         if not move_status or move_status != "invalid":
@@ -325,9 +322,16 @@ class Client:
 
         if self.game_controller:
             self.p2p_connection.close()
+            self.p2p_connection = None
+        else:
+            self.p2p_server.clear_connections()
 
         self.game = None
         self.game_controller = None
+
+        if self.user_state.current_state == self.user_state.waiting_game_instruction:
+            self.user_state.ready()
+
         self.user_state.game_end()
 
     def __logout(self, params):
@@ -395,6 +399,8 @@ class Client:
         response.sendall(json.dumps(payload).encode("ascii"))
 
     def __handle_game_move(self, request, response):
+        self.input_non_blocking.init_request()
+
         if not self.game_controller:
             response.sendall(
                 json.dumps(
@@ -407,16 +413,17 @@ class Client:
                 ).encode("ascii")
             )
 
-        self.input_non_blocking.init_request()
         move = request.get("move")
         move_status = self.game.update_oponent_move(int(move[0]), int(move[1]))
+
         print(self.game)
         print()
         self.user_state.ready()
-        self.input_non_blocking.end_request()
 
         if move_status:
             self.__finish_game(move_status)
+
+        self.input_non_blocking.end_request()
 
 
 def main():
