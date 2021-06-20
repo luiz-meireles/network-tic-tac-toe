@@ -71,6 +71,8 @@ class ServerEventHandler(Thread):
             with self.__connections_lock:
                 self.__connections[address] = (connection, connection_th)
 
+            self.__events.get("connection", lambda *_: _)({}, connection)
+
     def __handle_connection(self, connection, address):
         # TODO: improve client disconnection handler
         connection.sendall(b"OK")
@@ -87,6 +89,7 @@ class ServerEventHandler(Thread):
                 with self.__connections_lock:
                     if address in self.__connections:
                         self.__connections.pop(address)
+                        self.__events.get("disconnection", lambda *_: _)({}, connection)
                 break
 
 

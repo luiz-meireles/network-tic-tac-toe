@@ -1,5 +1,9 @@
-import sqlite3
+from os import curdir
+from typing import Counter
 from src.domain.user import User
+from datetime import datetime, timezone
+import sqlite3
+import json
 
 
 class ConstraintError(Exception):
@@ -68,6 +72,12 @@ class Storage:
         sql_query = f"UPDATE users SET {game_status}_count = {game_status}_count + 1 WHERE username = '{username}'"
         cursor.execute(sql_query)
 
+        self._connection.commit()
+
+    def insert_log(self, type, data):
+        cursor = self._connection.cursor()
+        sql_stmt = f"INSERT INTO logs (created_at, type, log) VALUES (?, ?, ?)"
+        cursor.execute(sql_stmt, (datetime.utcnow(), type, json.dumps(data)))
         self._connection.commit()
 
 

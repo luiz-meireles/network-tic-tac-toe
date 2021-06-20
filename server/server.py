@@ -1,5 +1,3 @@
-from socket import socket, AF_INET, SOCK_STREAM
-from ssl import SSLContext, PROTOCOL_TLS_SERVER
 from threading import Thread, Lock, Timer
 from src.auth import hash_password, check_password
 from src.domain.user import User
@@ -9,7 +7,6 @@ from src.connection import ServerEventHandler, set_interval, response_wrapper
 import sqlite3
 import argparse
 import json
-import time
 
 
 class Server:
@@ -31,12 +28,18 @@ class Server:
             tls_key="src/server_ssl/server.key",
         )
 
+        with self.db_lock:
+            self.db.insert_log("server_started", {"status": "OK"})
+
         set_interval(self.__heartbeat, 60)
 
     def run(self):
         self.secure_connection_handler.on("adduser", self.__add_user)
         self.secure_connection_handler.on("login", self.__login)
         self.secure_connection_handler.on("password_change", self.__change_password)
+        self.secure_connection_handler.on("connection", self.__connection)
+        self.secure_connection_handler.on("disconnection", self.__disconnection)
+
         self.secure_connection_handler.start()
 
         self.connection_handler.on("new_user_connection", self.__new_user_connection)
@@ -44,6 +47,7 @@ class Server:
         self.connection_handler.on("leaderboard", self.__leaderboard)
         self.connection_handler.on("logout", self.__logout)
         self.connection_handler.on("update_player_status", self.__update_player_status)
+        self.connection_handler.on("connection", self.__connection)
         self.connection_handler.start()
 
     @response_wrapper
@@ -128,8 +132,22 @@ class Server:
         user = self.db.get_user(username)
 
         if user and check_password(password.encode("ascii"), user.password):
+            with self.db_lock:
+                self.db.insert_log(
+                    "login",
+                    {"status": "OK", "ip": response.peername[0], "username": username},
+                )
             response.send("login", {"status": "OK"})
         else:
+            with self.db_lock:
+                self.db.insert_log(
+                    "login",
+                    {
+                        "status": "FAIL",
+                        "ip": response.peername[0],
+                        "username": username,
+                    },
+                )
             response.send(
                 "login",
                 {
@@ -156,9 +174,11 @@ class Server:
     @response_wrapper
     def __logout(self, request, response):
         username = request.username
-        with self.logged_users_lock:
+        ip, _ = response.peername
+        with self.logged_users_lock, self.db_lock:
             if username in self.logged_users:
                 self.logged_users.pop(username)
+                self.db.insert_log("logout", {"ip": ip})
         response.send(
             "logout",
             {
@@ -175,12 +195,26 @@ class Server:
         response.send("update_game_status", {"status": "OK"})
 
     def __heartbeat(self):
-        errors = self.connection_handler.emit(
+        address_errors = self.connection_handler.emit(
             json.dumps({"packet_type": "request", "packet_name": "heartbeat"}).encode(
                 "ascii"
             )
         )
-        print(errors)
+        if len(address_errors) > 0:
+            with self.db_lock:
+                for addr in address_errors:
+                    ip, _ = addr
+                    self.db.insert_log("connection", {"ip": ip})
+
+    def __connection(self, request, response):
+        ip, _ = response.getpeername()
+        with self.db_lock:
+            self.db.insert_log("connection", {"ip": ip})
+
+    def __disconnection(self, request, response):
+        ip, _ = response.getpeername()
+        with self.db_lock:
+            self.db.insert_log("disconnection", {"ip": ip})
 
 
 def main():

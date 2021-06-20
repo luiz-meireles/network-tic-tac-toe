@@ -6,3 +6,10 @@ CREATE TABLE IF NOT EXISTS users(
     lose_count INTEGER,
     tie_count INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS logs(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT,
+    type TEXT NOT NULL,
+    log json
+)

@@ -1,6 +1,5 @@
-from socket import create_connection, socket
-from ssl import SSLContext, PROTOCOL_TLS_CLIENT
 from random import randint
+import signal
 from src.connection import (
     connection_except,
     response_wrapper,
