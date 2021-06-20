@@ -1,4 +1,5 @@
 from threading import Thread, Lock, Timer
+from socket import socket, AF_INET, SOCK_DGRAM
 from src.auth import hash_password, check_password
 from src.domain.user import User
 from src.db import Storage
@@ -11,13 +12,15 @@ import json
 
 class Server:
     def __init__(self, args):
-        self.ip_address = "192.168.1.169"
         self.default_port = args.port
         self.tls_port = args.tls_port
         self.db = Storage()
         self.logged_users = {}
         self.db_lock = Lock()
         self.logged_users_lock = Lock()
+        s = socket(AF_INET, SOCK_DGRAM)
+        s.connect(("8.8.8.8", 1))
+        self.ip_address = s.getsockname()[0]
         self.connection_handler = ServerEventHandler(self.ip_address, self.default_port)
         self.secure_connection_handler = ServerEventHandler(
             self.ip_address,

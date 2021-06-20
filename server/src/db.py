@@ -83,13 +83,3 @@ class Storage:
 
 if __name__ == "__main__":
     pass
-    # storage = Storage()
-    # storage.run_migrations()
-
-    # user1 = User("tavela", "euamomelao")
-    # user2 = User("tom", "odeiocaqui")
-
-    # storage.insert_user(user1)
-    # storage.insert_user(user2)
-
-    # print(storage.get_user("tavela"))

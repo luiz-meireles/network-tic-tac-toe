@@ -1,5 +1,5 @@
 from random import randint
-from socket import gethostname, gethostbyname, gethostbyaddr
+from socket import socket, AF_INET, SOCK_DGRAM
 from src.connection import (
     connection_except,
     response_wrapper,
@@ -39,8 +39,12 @@ class Client:
 
         # self.default_connection.on("heartbeat", self.__heartbeat)
 
-        self.local_ip = gethostbyname(gethostname())
-        self.p2p_server = P2PServerEventHandler(self.local_ip, self.listen_port)
+        s = socket(AF_INET, SOCK_DGRAM)
+        s.connect(("8.8.8.8", 1))
+        self.client_ip_address = s.getsockname()[0]
+        self.p2p_server = P2PServerEventHandler(
+            self.client_ip_address, self.listen_port
+        )
         self.p2p_server.on("invitation", self.__handle_invitation)
         self.p2p_server.on("game_init", self.__handle_game_init)
         self.p2p_server.on("game_move", self.__handle_game_move)
