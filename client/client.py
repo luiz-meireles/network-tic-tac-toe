@@ -313,12 +313,22 @@ class Client:
             print("Jogada inválida, por favor tente novamente.")
 
     def __finish_game(self, status):
+
         if status == "tie":
             print("O jogo terminou em empate! :(")
         else:
             print(f"O vencedor do jogo foi o jogador {status}")
 
         print()
+        player_status = "win" if self.game.main_player() == status else "lose"
+        self.default_connection.request(
+            {
+                "packet_type": "request",
+                "packet_name": "update_player_status",
+                "username": self.username,
+                "game_status": status if status == "tie" else player_status,
+            }
+        )
 
         if self.game_controller:
             self.p2p_connection.close()

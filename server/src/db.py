@@ -63,6 +63,13 @@ class Storage:
 
         self._connection.commit()
 
+    def update_user_status(self, username, game_status):
+        cursor = self._connection.cursor()
+        sql_query = f"UPDATE users SET {game_status}_count = {game_status}_count + 1 WHERE username = '{username}'"
+        cursor.execute(sql_query)
+
+        self._connection.commit()
+
 
 if __name__ == "__main__":
     pass

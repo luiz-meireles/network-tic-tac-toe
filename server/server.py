@@ -34,18 +34,19 @@ class Server:
         set_interval(self.__heartbeat, 60)
 
     def run(self):
-        self.secure_connection_handler.on("adduser", self.add_user)
-        self.secure_connection_handler.on("login", self.login)
-        self.secure_connection_handler.on("password_change", self.change_password)
+        self.secure_connection_handler.on("adduser", self.__add_user)
+        self.secure_connection_handler.on("login", self.__login)
+        self.secure_connection_handler.on("password_change", self.__change_password)
         self.secure_connection_handler.start()
 
-        self.connection_handler.on("new_user_connection", self.new_user_connection)
-        self.connection_handler.on("list_players", self.list_players)
-        self.connection_handler.on("leaderboard", self.leaderboard)
-        self.connection_handler.on("logout", self.logout)
+        self.connection_handler.on("new_user_connection", self.__new_user_connection)
+        self.connection_handler.on("list_players", self.__list_players)
+        self.connection_handler.on("leaderboard", self.__leaderboard)
+        self.connection_handler.on("logout", self.__logout)
+        self.connection_handler.on("update_player_status", self.__update_player_status)
         self.connection_handler.start()
 
-    def list_players(self, request, response):
+    def __list_players(self, request, response):
         payload = {
             "packet_type": "response",
             "packet_name": "list_players",
@@ -55,7 +56,7 @@ class Server:
         }
         response.sendall(json.dumps(payload).encode("ascii"))
 
-    def leaderboard(self, request, response):
+    def __leaderboard(self, request, response):
         users = self.db.get_all_users()
         users_list = list(
             map(
@@ -80,7 +81,7 @@ class Server:
         }
         response.sendall(json.dumps(payload).encode("ascii"))
 
-    def change_password(self, request, response):
+    def __change_password(self, request, response):
         username = request.get("username")
         current_password = request.get("current_password")
         new_password = request.get("new_password")
@@ -109,7 +110,7 @@ class Server:
                 }
                 response.sendall(json.dumps(payload).encode("ascii"))
 
-    def add_user(self, request, response):
+    def __add_user(self, request, response):
         username, password = request.get("username"), request.get("password")
         hashed_password = hash_password(password.encode("ascii"))
         try:
@@ -132,7 +133,7 @@ class Server:
             }
             response.sendall(json.dumps(payload).encode("ascii"))
 
-    def login(self, request, response):
+    def __login(self, request, response):
         # TODO: log faild login
         username, password = request.get("username"), request.get("password")
         user = self.db.get_user(username)
@@ -155,7 +156,7 @@ class Server:
             }
             response.sendall(json.dumps(payload).encode("ascii"))
 
-    def new_user_connection(self, request, response):
+    def __new_user_connection(self, request, response):
         username = request.get("username")
         client_listen_port = request.get("listen_port")
         addr = response.getpeername()
@@ -173,7 +174,7 @@ class Server:
             ).encode("ascii")
         )
 
-    def logout(self, request, response):
+    def __logout(self, request, response):
         username = request.get("username")
         with self.logged_users_lock:
             if username in self.logged_users:
@@ -188,6 +189,19 @@ class Server:
                 }
             ).encode("ascii")
         )
+
+    def __update_player_status(self, request, response):
+        username, game_status = request.get("username"), request.get("game_status")
+
+        with self.db_lock:
+            self.db.update_user_status(username, game_status)
+        payload = {
+            "packet_type": "response",
+            "packet_name": "update_game_status",
+            "request_id": request.get("request_id"),
+            "status": "OK",
+        }
+        response.sendall(json.dumps(payload).encode("ascii"))
 
     def __heartbeat(self):
         errors = self.connection_handler.emit(
