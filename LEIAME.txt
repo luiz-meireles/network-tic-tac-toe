@@ -1,0 +1,38 @@
+EP3 - MAC0352
+Autores: Ygor Tavela Alves - 10687642, Washington Luiz Meireles de Lima - 10737157
+
+# Makefile comandos
+  - make install: instala as dependêncuas do arquivo requirements.txt
+  - make clean: apaga caches do python
+
+# EXECUTANDO OS PROGRAMAS
+
+python3 server/server.py server.py [-h] [-p PORT] [-tlsp TLS_PORT]
+
+python3 client/client.py [-h] [-ip IP_ADDRESS] [-lp LISTEN_PORT] [-p PORT] [-tlsp TLS_PORT]
+
+
+# ARQUIVOS
+Na raiz deste projeto encontram-se um Makefile com alguns comandos de instalação de dependêncuas e limpeza de cache,
+um arquivo slides.pdf contendo uma breve apresentação do EP3, um diretório tests/ contendo as gráficos de performance dos testes realizados e, por fim, os diretórios  client/ e server/.
+O diretório client/ se organiza da seguinte maneira:
+    - src/server_ssl/server.crt: certificado tls do server (para o cliente ser reconhecido)
+    - src/state/user: classe para controlar os estados do cliente
+    - src/connection.py: classes e funções auxiliares para lidar com conexões entre servidor e outros clientes (p2p)
+    - src/game.py: classe para controlar e sincronizar o jogo
+    - src/input_read.py: classe para controlar o input que recebe comandos
+    - client.py: classe responsável por administrar os comandos, conexões, jogo, estado, requests, etc...
+
+O diretório server/ se organiza da seguinte maneira:
+    - src/server_ssl/server.crt: certificado tls do server
+    - src/domain/user.py: uma classe simples para guardar as informações dos clientes
+    - src/auth.py: algumas funções para lidar com senha
+    - src/connection.py: classes e funções auxiliares para lidar com conexões entre clientes
+    - src/db.py: classe para fazer operações no banco de dados
+    - src/migration.sql: comandos sql usado gerar o banco de dados
+    - src/tictactoe.db: banco de dados gerado na primeira inicialização do server
+    - server.py: classe responsável por administrar as conexões, requests, clientes, etc...
+
+
+# DEPENDÊNCIAS
+veja o arquivo requirements.txt
