@@ -9,8 +9,12 @@ Autores:
 
 # EXECUTANDO OS PROGRAMAS
 python3 server/server.py server.py [-h] [-p PORT] [-tlsp TLS_PORT]
-
 python3 client/client.py [-h] [-ip SERVER_IP_ADDRESS] [-lp P2P_LISTEN_PORT] [-p PORT] [-tlsp TLS_PORT]
+
+Exemplos:
+
+python3 server/server.py -p 8080 -tlsp 8081
+python3 client/client.py -ip 192.168.1.169 -p 8080 -tlsp 8081 -lp 9000
 
 Obs.: A versão do python utilizada para executar o server/client foi a 3.9.5
 
@@ -34,7 +38,7 @@ O diretório server/ se organiza da seguinte maneira:
     - src/connection.py: classes e funções auxiliares para lidar com conexões entre clientes
     - src/db.py: classe para fazer operações no banco de dados
     - src/migration.sql: comandos sql usado gerar as tabelas do banco de dados
-    - src/tictactoe.db: banco de dados gerado do servidor
+    - src/tictactoe.db: banco de dados utilizado pelo servidor (criado depois da primeira execução do servidor)
     - server.py: classe responsável por administrar as conexões, requests, clientes, etc...
 
 
