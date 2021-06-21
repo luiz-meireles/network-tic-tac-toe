@@ -4,7 +4,6 @@ from contextlib import contextmanager
 
 import sys
 import select
-import time
 import os
 
 
