@@ -1,7 +1,7 @@
 from os import curdir
 from typing import Counter
+from datetime import datetime
 from src.domain.user import User
-from datetime import datetime, timezone
 import sqlite3
 import json
 

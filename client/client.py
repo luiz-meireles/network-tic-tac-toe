@@ -9,6 +9,7 @@ from src.connection import (
 from src.state.user import UserStateMachine
 from src.input_read import InputRead
 from src.game import TicTacToe
+
 import argparse
 import json
 import signal
@@ -145,7 +146,6 @@ class Client:
             self.user_state.login_success()
             self.__login_callback()
         else:
-            self.user_state.login_fail()
             print("Falha ao efetuar login. Verifique suas credenciais.")
 
     def __login_callback(self):
