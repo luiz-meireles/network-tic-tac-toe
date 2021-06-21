@@ -61,7 +61,7 @@ class Storage:
     def change_password(self, username, password):
         cursor = self._connection.cursor()
         cursor.execute(
-            "UPDATE users SET password = ? WHERE username = ?", (username, password)
+            "UPDATE users SET password = ? WHERE username = ?", (password, username)
         )
 
         self._connection.commit()

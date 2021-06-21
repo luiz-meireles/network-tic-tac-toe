@@ -94,23 +94,23 @@ class Server:
         if user and check_password(current_password.encode("ascii"), user.password):
             hashed_password = hash_password(new_password.encode("ascii"))
 
-            try:
-                with self.db_lock:
-                    self.db.change_password(username, hashed_password)
-                response.send(
-                    "change_password",
-                    {
-                        "status": "OK",
-                    },
-                )
-            except sqlite3.IntegrityError:
-                response.send(
-                    "change_password",
-                    {
-                        "status": "FAIL",
-                        "error": "Failed to change user password",
-                    },
-                )
+            with self.db_lock:
+                self.db.change_password(username, hashed_password)
+
+            response.send(
+                "password_change",
+                {
+                    "status": "OK",
+                },
+            )
+        else:
+            response.send(
+                "password_change",
+                {
+                    "status": "FAIL",
+                    "error": "Failed to change user password",
+                },
+            )
 
     @response_wrapper
     def __add_user(self, request, response):
