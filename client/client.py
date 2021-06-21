@@ -68,6 +68,13 @@ class Client:
             "leaders": {"callback": self.__leaders, "state": [self.user_state.logged]},
             "begin": {"callback": self.__new_game, "state": [self.user_state.logged]},
             "send": {"callback": self.__send, "state": [self.user_state.playing_game]},
+            "end": {
+                "callback": self.__end_game,
+                "state": [
+                    self.user_state.playing_game,
+                    self.user_state.waiting_game_instruction,
+                ],
+            },
             "logout": {"callback": self.__logout, "state": [self.user_state.logged]},
             "exit": {
                 "callback": self.__exit_client,
@@ -222,6 +229,10 @@ class Client:
         oponent_user = params[0]
         oponent_data = self.online_users.get(oponent_user)
 
+        if oponent_user == self.username:
+            print("Você não pode jogar uma partida contra você mesmo :(")
+            return
+
         if oponent_data:
             target_user_addr, target_user_port, target_user_state = oponent_data
 
@@ -251,6 +262,7 @@ class Client:
                 target_user_addr, target_user_port
             )
             self.p2p_connection.on("game_move", self.__handle_game_move)
+            self.p2p_connection.on("game_end", self.__handle_game_end)
 
             with connection_except():
                 response = self.p2p_connection.request(
@@ -308,7 +320,7 @@ class Client:
     def __player_choice(self):
         with self.input_non_blocking.block_input():
             print("\nVocê foi sorteado como primeiro jogador...")
-            player = input(f"Escolha qual jogador você deseja? (X/O)\n")
+            player = input(f"Qual jogador você deseja? (X/O)\n")
 
         return player
 
@@ -358,19 +370,27 @@ class Client:
             print("Jogada inválida, por favor tente novamente.")
 
     def __finish_game(self, status):
+        player_status = "win" if self.game.main_player() == status else "lose"
+        winner = (
+            "tie"
+            if status == "tie"
+            else self.username
+            if player_status == "win"
+            else self.oponent_user
+        )
+
         if status == "tie":
             print("O jogo terminou em empate! :(")
         else:
-            print(f"O vencedor do jogo foi o jogador {status}")
+            print(f"O vencedor do jogo foi o jogador {winner}")
 
         print()
-        player_status = "win" if self.game.main_player() == status else "lose"
         with connection_except():
             self.default_connection.request(
                 "update_player_status",
                 {
                     "username": self.username,
-                    "game_status": status if status == "tie" else player_status,
+                    "game_status": "tie" if status == "tie" else player_status,
                 },
             )
 
@@ -380,17 +400,23 @@ class Client:
                     "finish_game",
                     {
                         "users": [self.username, self.oponent_user],
+                        "end_status": "GAME_END",
+                        "winner": winner,
                     },
                 )
 
-            self.oponent_user = None
+        self.__clean_user_state()
+
+    def __clean_user_state(self):
+        if self.game_controller:
             self.p2p_connection.close()
             self.p2p_connection = None
+            self.game_controller = None
+            self.oponent_user = None
         else:
             self.p2p_server.clear_connections()
 
         self.game = None
-        self.game_controller = None
 
         if self.user_state.current_state == self.user_state.waiting_game_instruction:
             self.user_state.ready()
@@ -408,6 +434,38 @@ class Client:
         self.user_state.log_off()
 
         print("Logout efetuado com sucesso.")
+
+    def __end_game(self, params):
+        with self.input_non_blocking.block_input():
+            command = input(f"Você realmente deseja sair da partida? S/N\n").strip()
+
+            if command.lower() == "n":
+                return
+
+            if self.game_controller:
+                with connection_except():
+                    self.default_connection.request(
+                        "finish_game",
+                        {
+                            "users": [self.username, self.oponent_user],
+                            "end_status": "GAME_INTERRUPTED_BY_END",
+                            "winner": "None",
+                        },
+                    )
+
+                with connection_except():
+                    self.p2p_connection.request("game_end")
+            else:
+                self.p2p_server.emit(
+                    json.dumps(
+                        {
+                            "packet_type": "request",
+                            "packet_name": "game_end",
+                        }
+                    ).encode("ascii")
+                )
+
+            self.__clean_user_state()
 
     def __exit_client(self, params):
         if self.user_state.current_state == self.user_state.logged:
@@ -437,25 +495,26 @@ class Client:
 
     @response_wrapper
     def __handle_game_init(self, request, response):
-        self.user_state.game_init()
-        self.game_controller = False
-        first_player = request.first_player
-        player_choice = None
+        with self.input_non_blocking.block_input():
+            self.user_state.game_init()
+            self.game_controller = False
+            first_player = request.first_player
+            player_choice = None
 
-        if first_player == 0:
-            player_choice = request.player_choice
-            current_choice = "O" if player_choice == "X" else "X"
-            print(
-                f"O oponente foi sorteado como primeiro jogador, você será o jogador {current_choice}."
-            )
-            self.game = TicTacToe(current_choice, player_choice)
-            self.user_state.waiting()
-        elif first_player == 1:
-            player_choice = self.__player_choice()
-            current_choice = "O" if player_choice == "X" else "X"
-            self.game = TicTacToe(player_choice, current_choice)
+            if first_player == 0:
+                player_choice = request.player_choice
+                current_choice = "O" if player_choice == "X" else "X"
+                print(
+                    f"O oponente foi sorteado como primeiro jogador, você será o jogador {current_choice}."
+                )
+                self.game = TicTacToe(current_choice, player_choice)
+                self.user_state.waiting()
+            elif first_player == 1:
+                player_choice = self.__player_choice()
+                current_choice = "O" if player_choice == "X" else "X"
+                self.game = TicTacToe(player_choice, current_choice)
 
-        response.send("game_init", {"player_choice": player_choice})
+            response.send("game_init", {"player_choice": player_choice})
 
     @response_wrapper
     def __handle_game_move(self, request, response):
@@ -481,7 +540,27 @@ class Client:
     @response_wrapper
     def __handle_game_end(self, request, response):
         with self.input_non_blocking.block_input():
-            pass
+            if not self.game_controller:
+                response.send(
+                    "game_end",
+                    {
+                        "status": "OK",
+                    },
+                )
+            else:
+                with connection_except():
+                    self.default_connection.request(
+                        "finish_game",
+                        {
+                            "users": [self.username, self.oponent_user],
+                            "end_status": "GAME_INTERRUPTED_BY_END",
+                            "winner": "None",
+                        },
+                    )
+
+            print("O oponente abandonou a partida.")
+            print()
+            self.__clean_user_state()
 
 
 def main():

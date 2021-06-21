@@ -132,7 +132,6 @@ class Server:
 
     @response_wrapper
     def __login(self, request, response):
-        # TODO: log faild login
         username, password = request.username, request.password
         user = self.db.get_user(username)
 
@@ -255,9 +254,13 @@ class Server:
 
         with self.logged_users_lock:
             with self.db_lock:
+                self.logged_users[player_one][2] = "IDLE"
+                self.logged_users[player_two][2] = "IDLE"
                 self.db.insert_log(
                     "end_game",
                     {
+                        "end_status": request.end_status,
+                        "winner": request.winner,
                         "ip_player_one": self.logged_users[player_one][0],
                         "username_player_one": player_one,
                         "ip_player_two": self.logged_users[player_two][0],
