@@ -37,7 +37,7 @@ class Server:
             self.db.insert_log("server_started", {"status": "OK"})
 
         print(
-            f"Server is listening on ip {self.ip_address} at ports {self.default_port} and {self.tls_port} (for tls connections)"
+            f"Servidor está escutando no ip {self.ip_address} nas portas {self.default_port} e {self.tls_port} (para conexões TLS)"
         )
 
         set_interval(self.__heartbeat, 60)

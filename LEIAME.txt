@@ -3,23 +3,27 @@ Autores:
 - Washington Luiz Meireles de Lima - 10737157
 - Ygor Tavela Alves - 10687642
 
+
 # Makefile comandos
   - make install: instala as dependêncuas do arquivo requirements.txt
   - make clean: apaga caches do python
 
+
 # EXECUTANDO OS PROGRAMAS
 execute na pasta raiz do projeto:
 
-cd server/ && python3 server.py server.py [-h] [-p PORT] [-tlsp TLS_PORT]
-cd client/ && python3 client.py [-h] [-ip SERVER_IP_ADDRESS] [-lp P2P_LISTEN_PORT] [-p PORT] [-tlsp TLS_PORT]
+cd server/ && python3 server.py [-h] [-ip IP_ADDRESS] [-p PORT] [-tlsp TLS_PORT]
+cd client/ && python3 client.py [-h] [-ip SERVER_IP_ADDRESS] [-p PORT] [-tlsp TLS_PORT] -lp P2P_LISTEN_PORT 
+(argumentos entre [] são opcionais)
 
 Exemplos:
 
-cd server/ && python3 server.py -p 8080 -tlsp 8081
-cd client/ && python3 client.py -ip 192.168.1.169 -p 8080 -tlsp 8081 -lp 9000
+cd server/ && python3 server.py
+cd client/ && python3 client.py -lp 9000
+Irá executar um servidor no ip local, escutando nas portas 8080 e 8081 (TLS).
+Além de um cliente que envia conexões para o ip local nas portas 8080 e 8081 (TLS) e, escuta conexões P2P na porta 9000.
 
 Obs. 1: Deve-se executar os arquivos server.py e client.py nos seus respectivos diretórios, pois há imports relativos nas suas depedências, assim caso seja executado python3 server/server.py por exemplo, pode haver erros de importação.
-Obs. 2: A versão do python utilizada para executar o server/client foi a 3.9.5
 
 
 # ARQUIVOS
@@ -46,4 +50,13 @@ O diretório server/ se organiza da seguinte maneira:
 
 
 # DEPENDÊNCIAS
+- python 3.9.5
 - requirements.txt
+
+
+# FEATURES NÃO IMPLEMENTADAS
+Por diversos motivos, como por exemplo, a falta de tempo, algumas features exigidas no enunciado do EP não foram implementadas, dentre elas podemos citar:
+- falhas do servidor
+- verificação de latência entre clientes
+- comando delay dos clientes
+- tentativa de envio do resultado caso o servidor tenha caído no meio da partida

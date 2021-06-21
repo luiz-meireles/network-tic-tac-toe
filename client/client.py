@@ -121,7 +121,7 @@ class Client:
                 f"adduser necessita de 2 argumentos, no entanto, {len(params)} foram passados"
             )
             return
-        print(params[0], params[1])
+
         with connection_except():
             response = self.secure_connection.request(
                 "adduser",

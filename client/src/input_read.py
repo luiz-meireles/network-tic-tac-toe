@@ -1,4 +1,4 @@
-from threading import Thread, Event, main_thread
+from threading import Thread, Event
 from termios import TCIFLUSH, tcflush
 from contextlib import contextmanager
 
