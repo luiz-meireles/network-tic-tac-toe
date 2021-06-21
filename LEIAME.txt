@@ -1,23 +1,26 @@
 EP3 - MAC0352
-Autores: Ygor Tavela Alves - 10687642, Washington Luiz Meireles de Lima - 10737157
+Autores: 
+- Washington Luiz Meireles de Lima - 10737157
+- Ygor Tavela Alves - 10687642
 
 # Makefile comandos
   - make install: instala as dependêncuas do arquivo requirements.txt
   - make clean: apaga caches do python
 
 # EXECUTANDO OS PROGRAMAS
-
 python3 server/server.py server.py [-h] [-p PORT] [-tlsp TLS_PORT]
 
-python3 client/client.py [-h] [-ip IP_ADDRESS] [-lp LISTEN_PORT] [-p PORT] [-tlsp TLS_PORT]
+python3 client/client.py [-h] [-ip SERVER_IP_ADDRESS] [-lp P2P_LISTEN_PORT] [-p PORT] [-tlsp TLS_PORT]
+
+Obs.: A versão do python utilizada para executar o server/client foi a 3.9.5
 
 
 # ARQUIVOS
-Na raiz deste projeto encontram-se um Makefile com alguns comandos de instalação de dependêncuas e limpeza de cache,
+Na raiz deste projeto encontram-se um Makefile com alguns comandos de instalação de dependências (requirements.txt) e limpeza de cache,
 um arquivo slides.pdf contendo uma breve apresentação do EP3, um diretório tests/ contendo as gráficos de performance dos testes realizados e, por fim, os diretórios  client/ e server/.
 O diretório client/ se organiza da seguinte maneira:
-    - src/server_ssl/server.crt: certificado tls do server (para o cliente ser reconhecido)
-    - src/state/user: classe para controlar os estados do cliente
+    - src/server_ssl/server.crt: certificado tls do server
+    - src/state/user: classe para controlar os estados de uma máquina de estados que representa um cliente
     - src/connection.py: classes e funções auxiliares para lidar com conexões entre servidor e outros clientes (p2p)
     - src/game.py: classe para controlar e sincronizar o jogo
     - src/input_read.py: classe para controlar o input que recebe comandos
@@ -25,14 +28,15 @@ O diretório client/ se organiza da seguinte maneira:
 
 O diretório server/ se organiza da seguinte maneira:
     - src/server_ssl/server.crt: certificado tls do server
-    - src/domain/user.py: uma classe simples para guardar as informações dos clientes
-    - src/auth.py: algumas funções para lidar com senha
+    - src/server_ssl/server.key: chave do servidor utilizada para criptografar as conexões tls
+    - src/domain/user.py: classe que representa a entidade usuário
+    - src/auth.py: funções auxiliares para lidar com senha
     - src/connection.py: classes e funções auxiliares para lidar com conexões entre clientes
     - src/db.py: classe para fazer operações no banco de dados
-    - src/migration.sql: comandos sql usado gerar o banco de dados
-    - src/tictactoe.db: banco de dados gerado na primeira inicialização do server
+    - src/migration.sql: comandos sql usado gerar as tabelas do banco de dados
+    - src/tictactoe.db: banco de dados gerado do servidor
     - server.py: classe responsável por administrar as conexões, requests, clientes, etc...
 
 
 # DEPENDÊNCIAS
-veja o arquivo requirements.txt
+- requirements.txt
