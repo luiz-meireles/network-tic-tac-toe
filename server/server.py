@@ -51,7 +51,6 @@ class Server:
         self.connection_handler.on("logout", self.__logout)
         self.connection_handler.on("init_game_permission", self.__init_game_permission)
         self.connection_handler.on("init_game", self.__init_game)
-        self.connection_handler.on("update_player_status", self.__update_player_status)
         self.connection_handler.on("finish_game", self.__finish_game)
         self.connection_handler.on("connection", self.__connection)
         self.connection_handler.start()
@@ -192,18 +191,6 @@ class Server:
         )
 
     @response_wrapper
-    def __update_player_status(self, request, response):
-        username, game_status = request.username, request.game_status
-
-        with self.logged_users_lock:
-            self.logged_users[username][2] = "IDLE"
-
-        with self.db_lock:
-            self.db.update_user_status(username, game_status)
-
-        response.send("update_game_status", {"status": "OK"})
-
-    @response_wrapper
     def __init_game_permission(self, request, response):
         player_one, player_two = request.users
 
@@ -251,6 +238,15 @@ class Server:
     @response_wrapper
     def __finish_game(self, request, response):
         player_one, player_two = request.users
+        winner = request.winner
+
+        with self.db_lock:
+            self.db.update_user_status(
+                player_one, self.__check_game_status(player_one, winner)
+            )
+            self.db.update_user_status(
+                player_two, self.__check_game_status(player_two, winner)
+            )
 
         with self.logged_users_lock:
             with self.db_lock:
@@ -260,7 +256,7 @@ class Server:
                     "end_game",
                     {
                         "end_status": request.end_status,
-                        "winner": request.winner,
+                        "winner": winner,
                         "ip_player_one": self.logged_users[player_one][0],
                         "username_player_one": player_one,
                         "ip_player_two": self.logged_users[player_two][0],
@@ -269,6 +265,18 @@ class Server:
                 )
 
         response.send("finish_game", {"status": "OK"})
+
+    def __check_game_status(self, player_name, winner):
+        player_status = None
+
+        if winner == "tie":
+            player_status = "tie"
+        elif winner == player_name:
+            player_status = "win"
+        else:
+            player_status = "lose"
+
+        return player_status
 
     def __heartbeat(self):
         address_errors = self.connection_handler.emit(

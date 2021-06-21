@@ -320,7 +320,10 @@ class Client:
             print("\nVocê foi sorteado como primeiro jogador...")
             player = input(f"Qual jogador você deseja? (X/O)\n")
 
-        return player
+            while player.lower() != "x" and player.lower() != "o":
+                player = input(f"Qual jogador você deseja? (X/O)\n")
+
+        return player.upper()
 
     def __send(self, params):
         if len(params) != 2:
@@ -331,7 +334,7 @@ class Client:
 
         row, column = params
 
-        if not (row.isnumeric() or column.isnumeric()):
+        if not row.isnumeric() or not column.isnumeric():
             print("send aceita apenas caracteres númericos entre 1 e 3.")
             return
 
@@ -369,30 +372,25 @@ class Client:
 
     def __finish_game(self, status):
         player_status = "win" if self.game.main_player() == status else "lose"
-        winner = (
-            "tie"
-            if status == "tie"
-            else self.username
-            if player_status == "win"
-            else self.oponent_user
-        )
 
         if status == "tie":
-            print("O jogo terminou em empate! :(")
+            print("O jogo terminou em empate!")
+        elif player_status == "win":
+            print(f"Você foi o vencedor do jogo!")
         else:
-            print(f"O vencedor do jogo foi o jogador {winner}")
+            print(f"Você perdeu o jogo :(")
 
         print()
-        with connection_except():
-            self.default_connection.request(
-                "update_player_status",
-                {
-                    "username": self.username,
-                    "game_status": "tie" if status == "tie" else player_status,
-                },
-            )
 
         if self.game_controller:
+            winner = (
+                "tie"
+                if status == "tie"
+                else self.username
+                if player_status == "win"
+                else self.oponent_user
+            )
+
             with connection_except():
                 self.default_connection.request(
                     "finish_game",
@@ -410,11 +408,11 @@ class Client:
             self.p2p_connection.close()
             self.p2p_connection = None
             self.game_controller = None
-            self.oponent_user = None
         else:
             self.p2p_server.clear_connections()
 
         self.game = None
+        self.oponent_user = None
 
         if self.user_state.current_state == self.user_state.waiting_game_instruction:
             self.user_state.ready()
@@ -482,7 +480,13 @@ class Client:
                 f"\nO usuário {request.username} está querendo iniciar um novo jogo, você aceita a partida? S/N\n"
             ).strip()
 
-            status = "ACCEPT" if command.lower() == "s" else "REFUSED"
+            status = None
+
+            if command.lower() == "s":
+                status = "ACCEPT"
+                self.oponent_user = request.username
+            else:
+                status = "REFUSED"
 
             response.send(
                 "invitation",
