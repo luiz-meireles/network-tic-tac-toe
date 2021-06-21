@@ -1,4 +1,4 @@
-from threading import Thread, Event
+from threading import Thread, Event, main_thread
 from termios import TCIFLUSH, tcflush
 from contextlib import contextmanager
 
@@ -26,7 +26,6 @@ class InputRead(Thread):
                 sys.stdout.write("JogoDaVelha> ")
                 sys.stdout.flush()
                 show_default_label = False
-
             ready = select.select(self.read_list, [], [])[0]
 
             if self.read_pipe in ready:
@@ -43,6 +42,10 @@ class InputRead(Thread):
                     show_default_label = True
 
             tcflush(sys.stdin, TCIFLUSH)
+
+    def close(self):
+        with self.block_input():
+            self.read_list = []
 
     def init_request(self):
         os.write(self.write_pipe, b"\0")

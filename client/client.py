@@ -10,6 +10,8 @@ from src.state.user import UserStateMachine
 from src.input_read import InputRead
 from src.game import TicTacToe
 
+import sys
+import os
 import argparse
 import json
 import signal
@@ -39,12 +41,15 @@ class Client:
             server_hostname=self.tls_server_hostname,
         )
 
-        s = socket(AF_INET, SOCK_DGRAM)
-        s.connect(("8.8.8.8", 1))
-        self.client_ip_address = s.getsockname()[0]
+        _socket = socket(AF_INET, SOCK_DGRAM)
+        _socket.connect(("8.8.8.8", 1))
+
+        self.client_ip_address = _socket.getsockname()[0]
+
         self.p2p_server = P2PServerEventHandler(
             self.client_ip_address, self.listen_port
         )
+
         self.p2p_server.on("invitation", self.__handle_invitation)
         self.p2p_server.on("game_init", self.__handle_game_init)
         self.p2p_server.on("game_move", self.__handle_game_move)
@@ -84,6 +89,8 @@ class Client:
         self.game = None
         self.p2p_connection = None
 
+        signal.signal(signal.SIGINT, self.__handle_signal)
+
     def run(self):
         self.input_non_blocking = InputRead(self.__handle_command)
 
@@ -114,6 +121,7 @@ class Client:
                 f"adduser necessita de 2 argumentos, no entanto, {len(params)} foram passados"
             )
             return
+        print(params[0], params[1])
         with connection_except():
             response = self.secure_connection.request(
                 "adduser",
@@ -125,6 +133,8 @@ class Client:
 
         if response and response.get("status") == "OK":
             print("Usuário adicionado com sucesso.")
+        else:
+            print("Nome de usuário indisponível, tente outro.")
 
     def __login(self, params):
         if len(params) != 2:
@@ -464,6 +474,7 @@ class Client:
             self.__clean_user_state()
 
     def __exit_client(self, params):
+        print("\n Fechando...")
         if self.user_state.current_state == self.user_state.logged:
             self.__logout(None)
 
@@ -564,30 +575,47 @@ class Client:
             print()
             self.__clean_user_state()
 
+    def __handle_signal(self, signum, frame):
+        self.input_non_blocking.close()
+        self.input_non_blocking.join()
+
+        self.__exit_client([])
+
 
 def main():
     parser = argparse.ArgumentParser(
         description="Execute a client for a tic tac toe game"
     )
-    requiredNamed = parser.add_argument_group("required named arguments")
-    requiredNamed.add_argument(
-        "-ip", "--ip-address", type=str, help="server ip address"
+
+    parser.add_argument(
+        "-ip", "--ip-address", type=str, help="server ip address, default is local ip"
     )
+    parser.add_argument(
+        "-p", "--port", type=int, help="server port, default is 8080", default=8080
+    )
+    parser.add_argument(
+        "-tlsp",
+        "--tls-port",
+        type=int,
+        help="secure server port, default is 8081",
+        default=8081,
+    )
+
+    requiredNamed = parser.add_argument_group("required named arguments")
     requiredNamed.add_argument(
         "-lp",
         "--listen-port",
         type=int,
-        help="client listener port for P2P connections",
+        help="client port for P2P connections",
         required=True,
-    )
-    requiredNamed.add_argument(
-        "-p", "--port", type=int, help="server port", required=True
-    )
-    requiredNamed.add_argument(
-        "-tlsp", "--tls-port", type=int, help="secure server port", required=True
     )
 
     args = parser.parse_args()
+
+    if args.ip_address is None:
+        _socket = socket(AF_INET, SOCK_DGRAM)
+        _socket.connect(("8.8.8.8", 1))
+        args.ip_address = _socket.getsockname()[0]
 
     client = Client(args)
     client.run()

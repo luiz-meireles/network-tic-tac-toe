@@ -8,6 +8,7 @@ from src.connection import ServerEventHandler, set_interval, response_wrapper
 import sqlite3
 import argparse
 import json
+import signal
 
 
 class Server:
@@ -18,9 +19,10 @@ class Server:
         self.logged_users = {}
         self.db_lock = Lock()
         self.logged_users_lock = Lock()
-        s = socket(AF_INET, SOCK_DGRAM)
-        s.connect(("8.8.8.8", 1))
-        self.ip_address = s.getsockname()[0]
+        self.ip_address = args.ip_address
+
+    def run(self):
+
         self.connection_handler = ServerEventHandler(self.ip_address, self.default_port)
         self.secure_connection_handler = ServerEventHandler(
             self.ip_address,
@@ -34,9 +36,12 @@ class Server:
         with self.db_lock:
             self.db.insert_log("server_started", {"status": "OK"})
 
+        print(
+            f"Server is listening on ip {self.ip_address} at ports {self.default_port} and {self.tls_port} (for tls connections)"
+        )
+
         set_interval(self.__heartbeat, 60)
 
-    def run(self):
         self.secure_connection_handler.on("adduser", self.__add_user)
         self.secure_connection_handler.on("login", self.__login)
         self.secure_connection_handler.on("password_change", self.__change_password)
@@ -306,15 +311,30 @@ def main():
     parser = argparse.ArgumentParser(
         description="Execute a server for a tic tac toe game"
     )
-    requiredNamed = parser.add_argument_group("required named arguments")
-    requiredNamed.add_argument(
-        "-p", "--port", type=int, help="server port", required=True
+
+    parser.add_argument(
+        "-ip",
+        "--ip-address",
+        help="ip for the server, default as the local ip",
     )
-    requiredNamed.add_argument(
-        "-tlsp", "--tls-port", type=int, help="secure server port", required=True
+
+    parser.add_argument(
+        "-p", "--port", type=int, help="server port, default is 8080", default=8080
+    )
+    parser.add_argument(
+        "-tlsp",
+        "--tls-port",
+        type=int,
+        help="secure server port, default is 8081",
+        default=8081,
     )
 
     args = parser.parse_args()
+
+    if args.ip_address is None:
+        _socket = socket(AF_INET, SOCK_DGRAM)
+        _socket.connect(("8.8.8.8", 1))
+        args.ip_address = _socket.getsockname()[0]
 
     server = Server(args)
     server.run()
