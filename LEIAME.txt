@@ -8,15 +8,18 @@ Autores:
   - make clean: apaga caches do python
 
 # EXECUTANDO OS PROGRAMAS
-python3 server/server.py server.py [-h] [-p PORT] [-tlsp TLS_PORT]
-python3 client/client.py [-h] [-ip SERVER_IP_ADDRESS] [-lp P2P_LISTEN_PORT] [-p PORT] [-tlsp TLS_PORT]
+execute na pasta raiz do projeto:
+
+cd server/ && python3 server.py server.py [-h] [-p PORT] [-tlsp TLS_PORT]
+cd client/ && python3 client.py [-h] [-ip SERVER_IP_ADDRESS] [-lp P2P_LISTEN_PORT] [-p PORT] [-tlsp TLS_PORT]
 
 Exemplos:
 
-python3 server/server.py -p 8080 -tlsp 8081
-python3 client/client.py -ip 192.168.1.169 -p 8080 -tlsp 8081 -lp 9000
+cd server/ && python3 server.py -p 8080 -tlsp 8081
+cd client/ && python3 client.py -ip 192.168.1.169 -p 8080 -tlsp 8081 -lp 9000
 
-Obs.: A versão do python utilizada para executar o server/client foi a 3.9.5
+Obs. 1: Deve-se executar os arquivos server.py e client.py nos seus respectivos diretórios, pois há imports relativos nas suas depedências, assim caso seja executado python3 server/server.py por exemplo, pode haver erros de importação.
+Obs. 2: A versão do python utilizada para executar o server/client foi a 3.9.5
 
 
 # ARQUIVOS

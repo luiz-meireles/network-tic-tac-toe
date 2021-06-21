@@ -97,7 +97,7 @@ class Server:
             try:
                 with self.db_lock:
                     self.db.change_password(username, hashed_password)
-                response.sendall(
+                response.send(
                     "change_password",
                     {
                         "status": "OK",
