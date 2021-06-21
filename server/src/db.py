@@ -12,7 +12,6 @@ class ConstraintError(Exception):
 
 class Storage:
     def __init__(self):
-        # self.db = "./tictactoe.db"
         self._migration = "./src/migration.sql"
         self._connection = sqlite3.connect(
             "./src/tictactoe.db", check_same_thread=False

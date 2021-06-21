@@ -37,7 +37,6 @@ class ServerEventHandler(Thread):
         self.__events[event] = event_handler
 
     def emit(self, payload):
-        # TODO: improve this logic
         connection_errors = []
         if self.__is_running:
             with self.__connections_lock:
@@ -50,8 +49,6 @@ class ServerEventHandler(Thread):
         return connection_errors
 
     def run(self):
-        # TODO: improve server shutdown handler
-
         self.__connection = socket(AF_INET, SOCK_STREAM)
         self.__connection.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         self.__connection.bind((self.ip_address, self.port))
@@ -74,7 +71,6 @@ class ServerEventHandler(Thread):
             self.__events.get("connection", lambda *_: _)({}, connection)
 
     def __handle_connection(self, connection, address):
-        # TODO: improve client disconnection handler
         connection.sendall(b"OK")
         while self.__is_running:
             payload = connection.recv(self.bufflen)

@@ -38,8 +38,6 @@ class Client:
             server_hostname=self.tls_server_hostname,
         )
 
-        # self.default_connection.on("heartbeat", self.__heartbeat)
-
         s = socket(AF_INET, SOCK_DGRAM)
         s.connect(("8.8.8.8", 1))
         self.client_ip_address = s.getsockname()[0]
