@@ -24,7 +24,7 @@ Obs. 2: A versão do python utilizada para executar o server/client foi a 3.9.5
 
 # ARQUIVOS
 Na raiz deste projeto encontram-se um Makefile com alguns comandos de instalação de dependências (requirements.txt) e limpeza de cache,
-um arquivo slides.pdf contendo uma breve apresentação do EP3, um diretório tests/ contendo as gráficos de performance dos testes realizados e, por fim, os diretórios  client/ e server/.
+um arquivo slides.pdf contendo uma breve apresentação do EP3, um diretório testes/ contendo os gráficos de performance dos testes realizados e, por fim, os diretórios  client/ e server/.
 O diretório client/ se organiza da seguinte maneira:
     - src/server_ssl/server.crt: certificado tls do server
     - src/state/user: classe para controlar os estados de uma máquina de estados que representa um cliente
